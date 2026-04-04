@@ -419,9 +419,26 @@ export async function connectWhatsApp() {
             await saveMessage(contact.id, reply, "outbound", model);
           } catch (err: any) {
             logger.error({ err }, "AI reply failed");
-            if (adminPhone) {
-              await sendAdminAlert(`فشل الرد على +${phone}: ${err?.message ?? "خطأ غير معروف"}`);
+
+            // Send detailed error to admin only
+            const adminRawPhone = (await getSetting("adminPhone"))?.replace(/@.*/, "").replace(/[^0-9]/g, "");
+            if (adminRawPhone) {
+              const now = new Date().toLocaleString("ar-MA", { timeZone: "Africa/Casablanca", hour12: false });
+              const errMsg = err?.message ?? "خطأ غير معروف";
+              const errStack = err?.stack ? `\n📋 Stack:\n${String(err.stack).slice(0, 400)}` : "";
+              const aiUsed = (await getSetting("aiModel")) ?? "gemini";
+              const alertText =
+                `🚨 *خطأ في الذكاء الاصطناعي*\n\n` +
+                `🕐 الوقت: ${now}\n` +
+                `📱 المرسل: +${phone}\n` +
+                `💬 الرسالة: ${text.slice(0, 100)}${text.length > 100 ? "..." : ""}\n` +
+                `🤖 النموذج: ${aiUsed}\n` +
+                `❌ الخطأ: ${errMsg}` +
+                errStack;
+              await sendAdminAlert(alertText);
             }
+
+            // Do NOT send any error message to the regular user — stay silent
           }
 
           await db
