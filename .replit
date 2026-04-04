@@ -28,4 +28,3 @@ timeoutMs = 20000
 [userenv]
 
 [userenv.shared]
-GITHUB_PAT = "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"

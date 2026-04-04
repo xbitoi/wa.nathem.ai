@@ -47,6 +47,7 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+.replit
 
 # WhatsApp session (sensitive auth data — never push)
 **/.whatsapp-session/
