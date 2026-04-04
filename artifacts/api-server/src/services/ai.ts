@@ -299,12 +299,16 @@ async function tryGemini(
 ): Promise<string> {
   const { GoogleGenerativeAI } = await import("@google/generative-ai");
   const genAI = new GoogleGenerativeAI(apiKey);
-  const gModel = genAI.getGenerativeModel({ model: modelName });
+  // systemInstruction must be set on getGenerativeModel, NOT on startChat
+  const gModel = genAI.getGenerativeModel({
+    model: modelName,
+    systemInstruction: systemPrompt,
+  });
   const history = conversationHistory.map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
     parts: [{ text: m.content }],
   }));
-  const chat = gModel.startChat({ history, systemInstruction: systemPrompt });
+  const chat = gModel.startChat({ history });
   const result = await chat.sendMessage(userMessage);
   const reply = stripThinking(result.response.text());
   if (!reply) throw new Error("GEMINI_EMPTY_REPLY");
