@@ -1,5 +1,8 @@
 # نور — Yazaki AI Table Reader
 
+[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live-brightgreen?logo=github)](https://xbitoi.github.io/nour-agent)
+[![Deploy to GitHub Pages](https://github.com/xbitoi/nour-agent/actions/workflows/pages.yml/badge.svg)](https://github.com/xbitoi/nour-agent/actions/workflows/pages.yml)
+
 > **يحوّل الفوضى البصرية إلى تنظيم رقمي**
 > *Turning Visual Chaos into Digital Order*
 
@@ -55,9 +58,18 @@ pnpm Monorepo  ·  GitHub Actions
 │   │       └── whatsapp.ts  # اتصال واتساب + معالجة الرسائل
 │   └── nour-dashboard/      # لوحة التحكم (React + Vite)
 ├── lib/db/                  # قاعدة البيانات (Drizzle ORM)
-├── docs/                    # GitHub Pages
-└── .github/workflows/       # CI/CD
+├── docs/                    # GitHub Pages — الصفحة الرسمية
+└── .github/workflows/       # CI/CD — نشر تلقائي
 ```
+
+---
+
+## روابط مهمة
+
+| الرابط | الوصف |
+|--------|-------|
+| [xbitoi.github.io/nour-agent](https://xbitoi.github.io/nour-agent) | الصفحة الرسمية (GitHub Pages) |
+| [github.com/xbitoi/nour-agent](https://github.com/xbitoi/nour-agent) | المستودع |
 
 ---
 
