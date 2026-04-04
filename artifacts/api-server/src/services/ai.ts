@@ -70,8 +70,9 @@ function buildSystemPrompt(params: {
   ownerEmail: string;
   projectLink: string;
   agentPersonality: string;
+  isReturningUser?: boolean;
 }): string {
-  const { ownerName, ownerPhone, ownerEmail, projectLink, agentPersonality } = params;
+  const { ownerName, ownerPhone, ownerEmail, projectLink, agentPersonality, isReturningUser } = params;
 
   // Use the link as-is — GitHub links are allowed as URLs but the AI must not describe them verbally as "GitHub"
   const publicLink = projectLink ?? "";
@@ -117,8 +118,10 @@ function buildSystemPrompt(params: {
 - استخدم بشكل طبيعي: "الحمد لله" / "إن شاء الله" / "ما شاء الله" / "بفضل الله" — واحدة أو اثنتان فقط في الرد.
 
 [التعريف بالنفس — قاعدة صارمة]
-- الرسالة الأولى فقط: عرّف نفسك باسمك "نور" + ذكر أنك تُقدّم مشروع Yazaki AI نيابةً عن صاحبه + شعار المشروع: "يحوّل الفوضى البصرية إلى تنظيم رقمي 📄➡️💻".
-- الرسائل التالية: لا تذكر اسمك "نور" مطلقاً في بداية الرد. بدلاً من ذلك، ابدأ بشعار مختلف غير مكرر من القائمة التالية، ثم أجب مباشرة:
+${isReturningUser
+  ? `- هذا مستخدم عائد سبق أن تواصل معك. رحّب به بعبارة دافئة مختلفة مثل "أهلاً مجدداً 🌟" أو "يسعدنا عودتك 🤝" أو ما شابه — ثم أجب على رسالته مباشرة. لا تُعرّف بنفسك من جديد.`
+  : `- الرسالة الأولى: عرّف نفسك باسمك "نور" + ذكر أنك تُقدّم مشروع Yazaki AI نيابةً عن صاحبه + شعار: "يحوّل الفوضى البصرية إلى تنظيم رقمي 📄➡️💻".`}
+- الرسائل التالية (وغير الأولى): لا تذكر "أنا نور" في بداية الرد. ابدأ بشعار مختلف غير مكرر ثم أجب:
   • "من الورقة إلى القرار في ثوانٍ ⚡"
   • "صفر أخطاء، إنتاج أذكى 🎯"
   • "بيانات دقيقة، إنتاج بلا توقف 🏭"
@@ -126,7 +129,7 @@ function buildSystemPrompt(params: {
   • "لأن وقت العامل أغلى من البحث عن الورقة 💡"
   • "المصنع الذكي يبدأ ببيانات صحيحة 📊"
   • "رقمنة خطوط الإنتاج بدقة الذكاء الاصطناعي 🚀"
-  لا تكرر نفس الشعار في ردين متتاليين. اختر الأنسب للسياق.
+  اختر الأنسب للسياق ولا تكرر نفس الشعار مرتين.
 
 [أسلوب الرد]
 - اللغة: رد بالعربية إذا كتب بالعربية، وبالإنجليزية إذا كتب بالإنجليزية. عند تقديم المشروع: استخدم اللغتين معاً.
@@ -150,10 +153,21 @@ ${demoSection}
 [القواعد والحدود]
 - لا تخترع معلومات.
 - لا تذكر أسعاراً أو شروط تعاقد.
-- يمكنك مشاركة رابط التطبيق كما هو، لكن ممنوع تماماً أن تصف المشروع بأنه "على GitHub" أو "مستودع كود" أو "مفتوح المصدر" — فقط شارك الرابط.
+- يمكنك مشاركة رابط التطبيق كما هو، لكن لا تصف المشروع بأنه "على GitHub" أو "مستودع كود".
 - للأمور التقنية خارج نطاقك: أحل للتواصل مع صاحب المشروع مباشرة.
 - لا تذكر معلومات التواصل (اسم صاحب المشروع، رقمه، إيميله) إلا إذا سأل المستخدم صراحةً.
-- البيانات الثابتة (الاسم، الإيميل، الرابط، بيانات الدخول) تُكتب دائماً كما هي بالحرف — ممنوع ترجمتها أو تحويل أحرفها أو تعديل تهجئتها.
+
+[قاعدة النسخ الحرفي — لا استثناء]
+هذه البيانات تُنسخ COPY-PASTE كما هي بالضبط في كل لغة، ممنوع تعديلها أو ترجمتها أو تحويل أحرفها:
+- اسم المالك: ${ownerName || "(غير محدد)"}
+- إيميله: ${ownerEmail || "(غير محدد)"}
+- رقمه: ${ownerPhone || "(غير محدد)"}
+- رابط التطبيق: ${publicLink || "(غير محدد)"}
+- بيانات الدخول: username=admin password=admin | line=xjx4 workstation=sps2
+عند ذكر أي من هذه القيم، انسخها حرفياً من هنا — لا تترجمها ولا تكتبها بأحرف مختلفة.
+
+[منع تكرار الرابط]
+عند إعطاء بيانات الدخول التجريبية، اذكر الرابط مرة واحدة فقط. لا تكرره في نفس الرسالة بأي شكل.
 
 ${identityBlock}
 
@@ -287,7 +301,8 @@ function buildStaticFallback(params: {
 
 export async function generateAIReply(
   userMessage: string,
-  conversationHistory: Array<{ role: "user" | "assistant"; content: string }>
+  conversationHistory: Array<{ role: "user" | "assistant"; content: string }>,
+  isReturningUser = false
 ): Promise<{ reply: string; model: string }> {
   // Fetch all settings in one DB query (cached for 30 seconds)
   const s = await getAllSettings();
@@ -319,6 +334,7 @@ export async function generateAIReply(
     ownerEmail: _ownerEmail,
     projectLink: _projectLink,
     agentPersonality: _personality,
+    isReturningUser,
   });
 
   // Build ordered provider chain starting from the configured primary provider

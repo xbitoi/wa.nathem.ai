@@ -118,7 +118,7 @@ async function catchUpUnanswered(sock: any) {
         }));
 
         await sock.sendPresenceUpdate("composing", jid);
-        const { reply } = await generateAIReply(lastMsg.content, conversationHistory);
+        const { reply } = await generateAIReply(lastMsg.content, conversationHistory, history.length > 0);
         await sock.sendPresenceUpdate("paused", jid);
 
         await sock.sendMessage(jid, { text: reply });
@@ -708,12 +708,15 @@ export async function connectWhatsApp() {
         }
         history = history.slice(-2);
 
+        // A returning user has prior messages in the DB before this current message
+        const isReturningUser = previousMsgs.length > 0;
+
         await saveMessage(contact.id, text, "inbound");
 
         try {
           // ── Show typing indicator while AI is generating ──
           await sock.sendPresenceUpdate("composing", jid);
-          const { reply, model } = await generateAIReply(text, history);
+          const { reply, model } = await generateAIReply(text, history, isReturningUser);
           await sock.sendPresenceUpdate("paused", jid);
           await sock.sendMessage(jid, { text: reply });
           await saveMessage(contact.id, reply, "outbound", model);
