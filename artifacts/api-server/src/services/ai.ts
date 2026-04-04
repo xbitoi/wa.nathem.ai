@@ -126,6 +126,118 @@ ${agentPersonality ? `--- توجيهات خاصة ---\n\n${agentPersonality}` : 
 `.trim();
 }
 
+// Gemini fallback model chain (tried in order when quota/errors occur)
+const GEMINI_MODELS = [
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+  "gemini-1.5-flash-8b",
+  "gemini-2.0-flash-lite",
+];
+
+// Groq fallback model chain
+const GROQ_MODELS = [
+  "llama-3.3-70b-versatile",
+  "llama-3.1-8b-instant",
+  "gemma2-9b-it",
+  "mixtral-8x7b-32768",
+];
+
+// Detect quota / billing / rate-limit errors that should trigger fallback
+function isQuotaError(err: any): boolean {
+  const msg = String(err?.message ?? err ?? "").toLowerCase();
+  const status = err?.status ?? err?.statusCode ?? 0;
+  return (
+    status === 429 ||
+    status === 503 ||
+    status === 402 ||
+    msg.includes("quota") ||
+    msg.includes("rate limit") ||
+    msg.includes("rate_limit") ||
+    msg.includes("billing") ||
+    msg.includes("insufficient") ||
+    msg.includes("exceeded") ||
+    msg.includes("too many requests") ||
+    msg.includes("overloaded") ||
+    msg.includes("unavailable")
+  );
+}
+
+async function tryGemini(
+  apiKey: string,
+  modelName: string,
+  systemPrompt: string,
+  userMessage: string,
+  conversationHistory: Array<{ role: "user" | "assistant"; content: string }>
+): Promise<string> {
+  const { GoogleGenerativeAI } = await import("@google/generative-ai");
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const gModel = genAI.getGenerativeModel({ model: modelName });
+  const history = conversationHistory.map((m) => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: [{ text: m.content }],
+  }));
+  const chat = gModel.startChat({ history, systemInstruction: systemPrompt });
+  const result = await chat.sendMessage(userMessage);
+  const reply = stripThinking(result.response.text());
+  if (!reply) throw new Error("GEMINI_EMPTY_REPLY");
+  return reply;
+}
+
+async function tryGroq(
+  apiKey: string,
+  modelName: string,
+  systemPrompt: string,
+  userMessage: string,
+  conversationHistory: Array<{ role: "user" | "assistant"; content: string }>
+): Promise<string> {
+  const { default: Groq } = await import("groq-sdk");
+  const groq = new Groq({ apiKey });
+  const messages = [
+    { role: "system" as const, content: systemPrompt },
+    ...conversationHistory.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+    { role: "user" as const, content: userMessage },
+  ];
+  const completion = await groq.chat.completions.create({
+    model: modelName,
+    messages,
+    max_tokens: 1024,
+    temperature: 0.7,
+  });
+  const rawReply = completion.choices[0]?.message?.content;
+  if (!rawReply) throw new Error("GROQ_EMPTY_REPLY");
+  const reply = stripThinking(rawReply);
+  if (!reply) throw new Error("GROQ_EMPTY_AFTER_STRIP");
+  return reply;
+}
+
+function buildStaticFallback(params: {
+  ownerName: string;
+  ownerPhone: string;
+  ownerEmail: string;
+  projectLink: string;
+}): string {
+  const { ownerName, ownerPhone, ownerEmail, projectLink } = params;
+
+  const contactLines: string[] = [];
+  if (ownerName)   contactLines.push(`- المسؤول: ${ownerName}`);
+  if (ownerPhone)  contactLines.push(`- واتساب: ${ownerPhone}`);
+  if (ownerEmail)  contactLines.push(`- البريد: ${ownerEmail}`);
+  if (projectLink) contactLines.push(`- الرابط: ${projectLink}`);
+
+  const contactSection = contactLines.length > 0
+    ? `\n\nللتواصل المباشر:\n${contactLines.join("\n")}`
+    : "";
+
+  return (
+    `مرحباً، أنا نور - المساعد الذكي لمشروع Yazaki AI.\n\n` +
+    `مشروع Yazaki AI Table Reader هو حل رقمي لتحويل مخططات (شيمة) الاسلاك الكهربائية ` +
+    `من صور ورقية إلى بيانات منظمة داخل بيئة الإنتاج.` +
+    (projectLink ? `\n\nللمعاينة المباشرة: ${projectLink}` : "") +
+    contactSection +
+    `\n\n(النظام يمر بضغط تقني مؤقت — سأعود للرد الكامل قريباً)`
+  );
+}
+
 export async function generateAIReply(
   userMessage: string,
   conversationHistory: Array<{ role: "user" | "assistant"; content: string }>
@@ -139,46 +251,58 @@ export async function generateAIReply(
   const projectLink = (await getSetting("projectLink")) ?? "";
   const agentPersonality = (await getSetting("agentPersonality")) ?? "";
 
+  const geminiApiKey = (await getSetting("geminiApiKey")) ?? "";
+  const groqApiKey   = (await getSetting("groqApiKey"))   ?? "";
+
   const systemPrompt = buildSystemPrompt({ ownerName, ownerPhone, ownerEmail, projectLink, agentPersonality });
 
-  if (aiModel === "groq") {
-    const groqApiKey = await getSetting("groqApiKey");
-    if (!groqApiKey) throw new Error("GROQ_KEY_MISSING: مفتاح Groq غير مضبوط في لوحة التحكم");
+  // Build ordered provider chain starting from the configured primary provider
+  // Each entry: { provider, apiKey, models[] }
+  const geminiChain = { provider: "gemini", apiKey: geminiApiKey, models: buildModelChain(geminiModel, GEMINI_MODELS) };
+  const groqChain   = { provider: "groq",   apiKey: groqApiKey,   models: buildModelChain(groqModel,   GROQ_MODELS)   };
+  const providerChain = aiModel === "groq"
+    ? [groqChain, geminiChain]
+    : [geminiChain, groqChain];
 
-    const { default: Groq } = await import("groq-sdk");
-    const groq = new Groq({ apiKey: groqApiKey });
-    const messages = [
-      { role: "system" as const, content: systemPrompt },
-      ...conversationHistory.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
-      { role: "user" as const, content: userMessage },
-    ];
-    const completion = await groq.chat.completions.create({
-      model: groqModel,
-      messages,
-      max_tokens: 1024,
-      temperature: 0.7,
-    });
-    const rawReply = completion.choices[0]?.message?.content;
-    if (!rawReply) throw new Error("GROQ_EMPTY_REPLY: الرد من Groq كان فارغاً");
-    const reply = stripThinking(rawReply);
-    if (!reply) throw new Error("GROQ_EMPTY_AFTER_STRIP: الرد بعد حذف التفكير كان فارغاً");
-    return { reply, model: `groq/${groqModel}` };
+  const errors: string[] = [];
 
-  } else {
-    const geminiApiKey = await getSetting("geminiApiKey");
-    if (!geminiApiKey) throw new Error("GEMINI_KEY_MISSING: مفتاح Gemini غير مضبوط في لوحة التحكم");
-
-    const { GoogleGenerativeAI } = await import("@google/generative-ai");
-    const genAI = new GoogleGenerativeAI(geminiApiKey);
-    const gModel = genAI.getGenerativeModel({ model: geminiModel });
-    const history = conversationHistory.map((m) => ({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content }],
-    }));
-    const chat = gModel.startChat({ history, systemInstruction: systemPrompt });
-    const result = await chat.sendMessage(userMessage);
-    const reply = stripThinking(result.response.text());
-    if (!reply) throw new Error("GEMINI_EMPTY_REPLY: الرد من Gemini كان فارغاً");
-    return { reply, model: `gemini/${geminiModel}` };
+  for (const { provider, apiKey, models } of providerChain) {
+    if (!apiKey) {
+      errors.push(`${provider}: no API key`);
+      continue;
+    }
+    for (const model of models) {
+      try {
+        let reply: string;
+        if (provider === "gemini") {
+          reply = await tryGemini(apiKey, model, systemPrompt, userMessage, conversationHistory);
+        } else {
+          reply = await tryGroq(apiKey, model, systemPrompt, userMessage, conversationHistory);
+        }
+        // Success — log if we used a fallback
+        if (model !== (provider === "gemini" ? geminiModel : groqModel)) {
+          logger.warn({ provider, model, errors }, "AI fallback used");
+        }
+        return { reply, model: `${provider}/${model}` };
+      } catch (err: any) {
+        const reason = err?.message ?? String(err);
+        errors.push(`${provider}/${model}: ${reason}`);
+        logger.warn({ provider, model, reason }, "AI model failed, trying next");
+        // Only skip to next model on quota/rate/availability errors
+        // For hard config errors (bad API key, invalid model name), still try next
+        // We always continue to give maximum resilience
+      }
+    }
   }
+
+  // All providers and models exhausted — return static project info
+  logger.error({ errors }, "All AI providers failed, using static fallback");
+  const reply = buildStaticFallback({ ownerName, ownerPhone, ownerEmail, projectLink });
+  return { reply, model: "static/fallback" };
+}
+
+// Put the configured model first, then the rest of the chain (deduped)
+function buildModelChain(preferred: string, allModels: string[]): string[] {
+  const rest = allModels.filter((m) => m !== preferred);
+  return [preferred, ...rest];
 }
