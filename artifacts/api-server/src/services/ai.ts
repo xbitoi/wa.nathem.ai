@@ -104,28 +104,19 @@ function buildSystemPrompt(params: {
 • مهندس (Admin): username: admin / password: admin
 • عامل: خط الإنتاج: xjx4 / محطة العمل: sps2`;
 
+  // contactBlock — phone only (no email, no link — they live in other sections)
   const contactBlock = (() => {
     const lines: string[] = [];
-    if (ownerName) lines.push(`- الاسم: ${ownerName}`);
+    if (ownerName)  lines.push(`- الاسم: ${ownerName}`);
     if (ownerPhone) lines.push(`- واتساب: ${ownerPhone}`);
     if (ownerEmail) lines.push(`- إيميل: ${ownerEmail}`);
-    if (publicLink) lines.push(`- رابط التطبيق: ${publicLink}`);
     return lines.length > 0
-      ? `معلومات التواصل:\n${lines.join("\n")}`
+      ? `معلومات التواصل (اذكرها فقط عند السؤال المباشر):\n${lines.join("\n")}`
       : `لا تتوفر معلومات تواصل محددة حالياً. شجّع المهتم على التعبير عن اهتمامه وسيُتابَع معه.`;
   })();
 
-  // Build owner info for "who made this?" answers
-  const ownerContactInfo = (() => {
-    const parts: string[] = [];
-    if (ownerName)  parts.push(`الاسم: ${ownerName}`);
-    if (ownerEmail) parts.push(`البريد الإلكتروني: ${ownerEmail}`);
-    if (ownerPhone) parts.push(`واتساب: ${ownerPhone}`);
-    return parts.join(" — ");
-  })();
-
   const identityBlock = ownerName
-    ? `إذا سئلت "من صنعك؟" أو "من صاحب المشروع؟" أو "who made you?" أو أي سؤال مشابه، فأنت وكيل ذكاء اصطناعي أنشأه ${ownerName} بمفرده ضمن مشروع Yazaki AI.${ownerContactInfo ? `\nللتواصل معه: ${ownerContactInfo}.` : ""}`
+    ? `إذا سئلت "من صنعك؟" أو "من صاحب المشروع؟" أو "who made you?" أو ما شابه، فأنت وكيل ذكاء اصطناعي أنشأه ${ownerName} بمفرده ضمن مشروع Yazaki AI. اكتفِ بذكر اسمه فقط هنا — لا تذكر الإيميل أو الرقم إلا إذا طلبهما المستخدم صراحةً.`
     : `إذا سئلت "من صنعك؟" أو "من صاحب المشروع؟" فأنت وكيل ذكاء اصطناعي أنشأه صاحب مشروع Yazaki AI بمفرده.`;
 
   return `
@@ -198,8 +189,14 @@ ${demoSection}
 - بيانات الدخول: username=admin password=admin | line=xjx4 workstation=sps2
 عند ذكر أي من هذه القيم، انسخها حرفياً من هنا — لا تترجمها ولا تكتبها بأحرف مختلفة.
 
-[منع تكرار الرابط]
-عند إعطاء بيانات الدخول التجريبية، اذكر الرابط مرة واحدة فقط. لا تكرره في نفس الرسالة بأي شكل.
+[قاعدة عدم التكرار — صارمة جداً]
+كل معلومة تُذكر مرة واحدة بالضبط في الرد الواحد، بدون استثناء:
+- الرابط: اذكره مرة واحدة فقط — إذا ظهر في أي مكان في الرد، لا تكرره
+- الإيميل: اذكره مرة واحدة فقط
+- رقم الواتساب: اذكره مرة واحدة فقط
+- اسم المالك: اذكره مرة واحدة فقط
+- بيانات الدخول (admin/admin، xjx4/sps2): اذكرها مرة واحدة فقط
+إذا كانت أي من هذه المعلومات قد ذُكرت سابقاً في الرد، تخطّها ولا تعد ذكرها.
 
 ${identityBlock}
 
