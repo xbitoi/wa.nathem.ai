@@ -145,20 +145,38 @@ async function catchUpUnanswered(sock: any) {
 }
 
 // Send system alert to admin only
-// Try @s.whatsapp.net first, then fall back to @lid (for linked-device accounts)
+// Try multiple JID formats until one succeeds
 async function sendToAdminJid(text: string): Promise<boolean> {
   if (state.status !== "connected" || !state.client) return false;
-  const rawPhone = (await getSetting("adminPhone"))?.replace(/@.+$/, "").replace(/[^0-9]/g, "");
-  if (!rawPhone) return false;
-  for (const suffix of ["@s.whatsapp.net", "@lid"]) {
+
+  // Build candidate JIDs — adminPhone first, ownerPhone as fallback
+  const adminRaw = (await getSetting("adminPhone"))?.replace(/@.+$/, "").replace(/[^0-9]/g, "") ?? "";
+  const ownerRaw = (await getSetting("ownerPhone"))?.replace(/@.+$/, "").replace(/[^0-9]/g, "") ?? "";
+
+  // Normalize Moroccan number: 0XXXXXXXXX → 212XXXXXXXXX
+  const normalize = (n: string) => (n.startsWith("0") && n.length === 10) ? `212${n.slice(1)}` : n;
+
+  const candidates: string[] = [];
+  for (const raw of [adminRaw, ownerRaw]) {
+    if (!raw) continue;
+    const n = normalize(raw);
+    candidates.push(`${n}@s.whatsapp.net`, `${n}@lid`);
+  }
+
+  // Deduplicate
+  const unique = [...new Set(candidates)];
+  logger.info({ candidates: unique }, "Trying admin JID candidates");
+
+  for (const jid of unique) {
     try {
-      await state.client.sendMessage(`${rawPhone}${suffix}`, { text });
-      logger.info({ jid: `${rawPhone}${suffix}` }, "Admin message sent ✅");
+      await state.client.sendMessage(jid, { text });
+      logger.info({ jid }, "Admin message sent ✅");
       return true;
     } catch (err: any) {
-      logger.warn({ jid: `${rawPhone}${suffix}`, err: err?.message }, "Admin JID failed, trying next");
+      logger.warn({ jid, err: err?.message }, "JID failed, trying next");
     }
   }
+  logger.error({ tried: unique }, "All admin JIDs failed");
   return false;
 }
 
