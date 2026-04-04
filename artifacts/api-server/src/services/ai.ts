@@ -64,6 +64,24 @@ function stripThinking(text: string): string {
     .trim();
 }
 
+const SLOGANS = [
+  "يحوّل الفوضى البصرية إلى تنظيم رقمي 📄➡️💻",
+  "من الورقة إلى القرار في ثوانٍ ⚡",
+  "صفر أخطاء، إنتاج أذكى 🎯",
+  "بيانات دقيقة، إنتاج بلا توقف 🏭",
+  "عصر الورقة انتهى — عصر البيانات بدأ 🔄",
+  "لأن وقت العامل أغلى من البحث عن الورقة 💡",
+  "المصنع الذكي يبدأ ببيانات صحيحة 📊",
+  "رقمنة خطوط الإنتاج بدقة الذكاء الاصطناعي 🚀",
+  "من الشيمة إلى الشاشة في ثوانٍ 🖥️",
+  "الجودة تبدأ من بيانات صحيحة ✅",
+  "لا أخطاء قراءة — لا توقف إنتاج 🛡️",
+  "بيانات أسلاك دقيقة على مدار الوردية بأكملها 🤖",
+  "خط الإنتاج يستحق أكثر من ورقة مبعثرة 📑",
+  "رؤية رقمية لكل سلك، في كل محطة 🔌",
+  "التحول الرقمي يبدأ من أصغر تفصيلة في المصنع 🏗️",
+];
+
 function buildSystemPrompt(params: {
   ownerName: string;
   ownerPhone: string;
@@ -71,8 +89,13 @@ function buildSystemPrompt(params: {
   projectLink: string;
   agentPersonality: string;
   isReturningUser?: boolean;
+  messageCount?: number;
 }): string {
-  const { ownerName, ownerPhone, ownerEmail, projectLink, agentPersonality, isReturningUser } = params;
+  const { ownerName, ownerPhone, ownerEmail, projectLink, agentPersonality, isReturningUser, messageCount = 0 } = params;
+
+  // Deterministic slogan selection — cycles through all 15 then restarts
+  const sloganIndex = messageCount % SLOGANS.length;
+  const assignedSlogan = SLOGANS[sloganIndex];
 
   // Use the link as-is — GitHub links are allowed as URLs but the AI must not describe them verbally as "GitHub"
   const publicLink = projectLink ?? "";
@@ -117,19 +140,24 @@ function buildSystemPrompt(params: {
 - ابدأ أول رد في المحادثة بـ: السلام عليكم ورحمة الله
 - استخدم بشكل طبيعي: "الحمد لله" / "إن شاء الله" / "ما شاء الله" / "بفضل الله" — واحدة أو اثنتان فقط في الرد.
 
+[الشعار المخصص لهذه الرسالة]
+الشعار المحدد لهذا الرد هو: "${assignedSlogan}"
+استخدمه في بداية ردك كما هو — يمكنك دمجه بشكل إبداعي في جملة ابتداء الرد أو كتابته منفرداً. لا تستبدله ولا تحذفه.
+
 [التعريف بالنفس — قاعدة صارمة]
 ${isReturningUser
-  ? `- هذا مستخدم عائد سبق أن تواصل معك. رحّب به بعبارة دافئة مختلفة مثل "أهلاً مجدداً 🌟" أو "يسعدنا عودتك 🤝" أو ما شابه — ثم أجب على رسالته مباشرة. لا تُعرّف بنفسك من جديد.`
-  : `- الرسالة الأولى: عرّف نفسك باسمك "نور" + ذكر أنك تُقدّم مشروع Yazaki AI نيابةً عن صاحبه + شعار: "يحوّل الفوضى البصرية إلى تنظيم رقمي 📄➡️💻".`}
-- الرسائل التالية (وغير الأولى): لا تذكر "أنا نور" في بداية الرد. ابدأ بشعار مختلف غير مكرر ثم أجب:
-  • "من الورقة إلى القرار في ثوانٍ ⚡"
-  • "صفر أخطاء، إنتاج أذكى 🎯"
-  • "بيانات دقيقة، إنتاج بلا توقف 🏭"
-  • "عصر الورقة انتهى — عصر البيانات بدأ 🔄"
-  • "لأن وقت العامل أغلى من البحث عن الورقة 💡"
-  • "المصنع الذكي يبدأ ببيانات صحيحة 📊"
-  • "رقمنة خطوط الإنتاج بدقة الذكاء الاصطناعي 🚀"
-  اختر الأنسب للسياق ولا تكرر نفس الشعار مرتين.
+  ? `- هذا مستخدم عائد. رحّب به بعبارة دافئة مختلفة مثل "أهلاً مجدداً 🌟" أو "يسعدنا عودتك 🤝" ثم اجمعها مع الشعار المخصص في جملة واحدة أو جملتين.`
+  : messageCount === 0
+    ? `- رسالة أولى: عرّف نفسك باسمك "نور" + أنك تُقدّم مشروع Yazaki AI نيابةً عن صاحبه، ثم أضف الشعار المخصص.`
+    : `- ليست الرسالة الأولى: لا تقل "أنا نور" في المقدمة. ابدأ مباشرة بالشعار المخصص ثم أجب.`}
+
+[الوعي بالسياق — نور حيّ ومفكّر]
+اقرأ رسالة المستخدم وافهم حاجته الحقيقية:
+- إذا بدا في حيرة أو يبحث عن حل أو يطرح مشكلة أو يعبّر عن ضيق: ابدأ بـ "أنا نور، هنا لأساعدك" بأسلوب مختلف في كل مرة، يمكنك دمج الشعار معها.
+  مثال: "أنا نور وأنا معك — ${assignedSlogan}" أو "هنا لأساعدك ✋ — ${assignedSlogan}"
+- إذا كان المستخدم يستكشف أو يتعلم: اشرح بأسلوب المعلّم الودود.
+- إذا كان مديراً أو صاحب قرار: تحدّث بلغة القيمة المؤسسية والكفاءة.
+- إذا كان عاملاً أو فنياً: تحدّث بلغة عملية مباشرة.
 
 [أسلوب الرد]
 - اللغة: رد بالعربية إذا كتب بالعربية، وبالإنجليزية إذا كتب بالإنجليزية. عند تقديم المشروع: استخدم اللغتين معاً.
@@ -330,7 +358,8 @@ function buildStaticFallback(params: {
 export async function generateAIReply(
   userMessage: string,
   conversationHistory: Array<{ role: "user" | "assistant"; content: string }>,
-  isReturningUser = false
+  isReturningUser = false,
+  messageCount = 0
 ): Promise<{ reply: string; model: string }> {
   // Fetch all settings in one DB query (cached for 30 seconds)
   const s = await getAllSettings();
@@ -363,6 +392,7 @@ export async function generateAIReply(
     projectLink: _projectLink,
     agentPersonality: _personality,
     isReturningUser,
+    messageCount,
   });
 
   // Build ordered provider chain starting from the configured primary provider

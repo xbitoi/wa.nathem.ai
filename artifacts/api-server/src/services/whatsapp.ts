@@ -118,7 +118,7 @@ async function catchUpUnanswered(sock: any) {
         }));
 
         await sock.sendPresenceUpdate("composing", jid);
-        const { reply } = await generateAIReply(lastMsg.content, conversationHistory, history.length > 0);
+        const { reply } = await generateAIReply(lastMsg.content, conversationHistory, history.length > 0, contact.messageCount);
         await sock.sendPresenceUpdate("paused", jid);
 
         await sock.sendMessage(jid, { text: reply });
@@ -716,7 +716,7 @@ export async function connectWhatsApp() {
         try {
           // ── Show typing indicator while AI is generating ──
           await sock.sendPresenceUpdate("composing", jid);
-          const { reply, model } = await generateAIReply(text, history, isReturningUser);
+          const { reply, model } = await generateAIReply(text, history, isReturningUser, contact.messageCount);
           await sock.sendPresenceUpdate("paused", jid);
           await sock.sendMessage(jid, { text: reply });
           await saveMessage(contact.id, reply, "outbound", model);
