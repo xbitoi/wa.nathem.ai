@@ -716,8 +716,37 @@ export async function connectWhatsApp() {
         try {
           // ── Show typing indicator while AI is generating ──
           await sock.sendPresenceUpdate("composing", jid);
-          const { reply, model } = await generateAIReply(text, history, isReturningUser, contact.messageCount);
+          let { reply, model } = await generateAIReply(text, history, isReturningUser, contact.messageCount);
           await sock.sendPresenceUpdate("paused", jid);
+
+          // ── Intercept [FORWARD_ADMIN: ...] tag from AI reply ──────────
+          const forwardMatch = reply.match(/\[FORWARD_ADMIN:\s*([\s\S]*?)\]/);
+          if (forwardMatch) {
+            const forwardContent = forwardMatch[1].trim();
+            // Strip the tag from the user-facing reply
+            reply = reply.replace(/\[FORWARD_ADMIN:\s*[\s\S]*?\]/, "").trim();
+
+            // Build admin notification message
+            const senderLabel = contact.name
+              ? `${contact.name} (+${contact.phone})`
+              : `+${contact.phone}`;
+            const adminMsg =
+              `📩 *رسالة من زائر عبر نور*\n\n` +
+              `👤 المرسل: ${senderLabel}\n\n` +
+              `💬 الرسالة:\n"${forwardContent}"`;
+
+            try {
+              const rawAdminPhone = (await getSetting("adminPhone"))?.replace(/@.+$/, "");
+              if (rawAdminPhone && state.client) {
+                const adminJid = `${rawAdminPhone}@s.whatsapp.net`;
+                await state.client.sendMessage(adminJid, { text: adminMsg });
+                logger.info({ from: contact.phone }, "Forwarded visitor message to admin");
+              }
+            } catch (fwdErr) {
+              logger.error({ fwdErr }, "Failed to forward visitor message to admin");
+            }
+          }
+
           await sock.sendMessage(jid, { text: reply });
           await saveMessage(contact.id, reply, "outbound", model);
         } catch (err: any) {
