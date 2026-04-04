@@ -1,8 +1,18 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
+import whatsappRouter from "./whatsapp";
+import contactsRouter from "./contacts";
+import messagesRouter from "./messages";
+import settingsRouter from "./settings";
+import statsRouter from "./stats";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use("/whatsapp", whatsappRouter);
+router.use("/contacts", contactsRouter);
+router.use("/messages", messagesRouter);
+router.use("/settings", settingsRouter);
+router.use("/stats", statsRouter);
 
 export default router;
