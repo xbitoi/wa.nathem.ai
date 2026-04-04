@@ -234,10 +234,10 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto pb-12">
+    <div className="space-y-5 max-w-4xl mx-auto pb-12">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Configuration</h1>
-        <p className="text-muted-foreground mt-2">Manage project details and AI behavior.</p>
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">الإعدادات</h1>
+        <p className="text-muted-foreground mt-1 text-sm">إعداد تفاصيل المشروع وسلوك الذكاء الاصطناعي.</p>
       </div>
 
       <Form {...form}>

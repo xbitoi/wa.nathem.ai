@@ -40,10 +40,10 @@ export default function Whatsapp() {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
+    <div className="space-y-5 max-w-2xl mx-auto">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">WhatsApp Connection</h1>
-        <p className="text-muted-foreground mt-2">Link your WhatsApp account to the agent.</p>
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">اتصال واتساب</h1>
+        <p className="text-muted-foreground mt-1 text-sm">ربط حسابك على واتساب بالوكيل الذكي.</p>
       </div>
 
       {statusLoading ? (

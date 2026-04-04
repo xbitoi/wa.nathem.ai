@@ -34,10 +34,10 @@ export default function Broadcast() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-5">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Broadcast</h1>
-        <p className="text-muted-foreground mt-2">Send mass messages to all active contacts.</p>
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">الإرسال الجماعي</h1>
+        <p className="text-muted-foreground mt-1 text-sm">إرسال رسالة لجميع جهات الاتصال النشطة.</p>
       </div>
 
       <Card className="bg-card/50 backdrop-blur border-border/50">
