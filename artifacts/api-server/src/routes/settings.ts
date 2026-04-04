@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, settingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { UpdateSettingsBody } from "@workspace/api-zod";
+import { invalidateSettingsCache } from "../services/ai";
 
 const router = Router();
 
@@ -70,6 +71,9 @@ router.post("/", async (req, res) => {
       .values({ key, value })
       .onConflictDoUpdate({ target: settingsTable.key, set: { value } });
   }
+
+  // Invalidate the AI settings cache so next message uses fresh values
+  invalidateSettingsCache();
 
   const raw = await getAllSettings();
   res.json(buildSettingsObject(raw));

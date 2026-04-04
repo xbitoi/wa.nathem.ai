@@ -2,9 +2,58 @@ import { logger } from "../lib/logger";
 import { db, settingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
+// ── Settings cache (30 second TTL) ─────────────────────────────────────────
+let _settingsCache: Record<string, string | null> | null = null;
+let _settingsCacheAt = 0;
+const SETTINGS_TTL_MS = 30_000;
+
+async function getAllSettings(): Promise<Record<string, string | null>> {
+  const now = Date.now();
+  if (_settingsCache && now - _settingsCacheAt < SETTINGS_TTL_MS) return _settingsCache;
+  const rows = await db.select().from(settingsTable);
+  const map: Record<string, string | null> = {};
+  for (const row of rows) map[row.key] = row.value;
+  _settingsCache = map;
+  _settingsCacheAt = now;
+  return map;
+}
+
+export function invalidateSettingsCache() {
+  _settingsCache = null;
+}
+
 async function getSetting(key: string): Promise<string | null> {
-  const rows = await db.select().from(settingsTable).where(eq(settingsTable.key, key));
-  return rows[0]?.value ?? null;
+  const map = await getAllSettings();
+  return map[key] ?? null;
+}
+
+// ── Circuit breaker — skip recently-failed models (3 min cooldown) ──────────
+const failedModels = new Map<string, number>();
+const CIRCUIT_BREAKER_MS = 3 * 60 * 1000;
+
+function isModelCoolingDown(provider: string, model: string): boolean {
+  const key = `${provider}/${model}`;
+  const failedAt = failedModels.get(key);
+  if (!failedAt) return false;
+  if (Date.now() - failedAt < CIRCUIT_BREAKER_MS) return true;
+  failedModels.delete(key);
+  return false;
+}
+
+function markModelFailed(provider: string, model: string) {
+  failedModels.set(`${provider}/${model}`, Date.now());
+}
+
+// ── Per-call timeout ─────────────────────────────────────────────────────────
+const AI_TIMEOUT_MS = 9_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`TIMEOUT after ${ms}ms: ${label}`)), ms)
+    ),
+  ]);
 }
 
 // Strip chain-of-thought <think>...</think> blocks that some models output
@@ -201,7 +250,7 @@ async function tryGroq(
   const completion = await groq.chat.completions.create({
     model: modelName,
     messages,
-    max_tokens: 1024,
+    max_tokens: 600,
     temperature: 0.7,
   });
   const rawReply = completion.choices[0]?.message?.content;
@@ -243,23 +292,18 @@ export async function generateAIReply(
   userMessage: string,
   conversationHistory: Array<{ role: "user" | "assistant"; content: string }>
 ): Promise<{ reply: string; model: string }> {
-  // Fetch all needed settings in parallel — single round-trip to DB
-  const [
-    aiModel, geminiModel, groqModel,
-    ownerName, ownerPhone, ownerEmail, projectLink, agentPersonality,
-    geminiApiKey, groqApiKey,
-  ] = await Promise.all([
-    getSetting("aiModel"),
-    getSetting("geminiModel"),
-    getSetting("groqModel"),
-    getSetting("ownerName"),
-    getSetting("ownerPhone"),
-    getSetting("ownerEmail"),
-    getSetting("projectLink"),
-    getSetting("agentPersonality"),
-    getSetting("geminiApiKey"),
-    getSetting("groqApiKey"),
-  ]);
+  // Fetch all settings in one DB query (cached for 30 seconds)
+  const s = await getAllSettings();
+  const aiModel        = s["aiModel"];
+  const geminiModel    = s["geminiModel"];
+  const groqModel      = s["groqModel"];
+  const ownerName      = s["ownerName"];
+  const ownerPhone     = s["ownerPhone"];
+  const ownerEmail     = s["ownerEmail"];
+  const projectLink    = s["projectLink"];
+  const agentPersonality = s["agentPersonality"];
+  const geminiApiKey   = s["geminiApiKey"];
+  const groqApiKey     = s["groqApiKey"];
 
   const _aiModel      = aiModel    ?? "gemini";
   const _geminiModel  = geminiModel || "gemini-2.0-flash";
@@ -295,21 +339,37 @@ export async function generateAIReply(
       continue;
     }
     for (const model of models) {
+      // Skip models that recently failed (circuit breaker)
+      if (isModelCoolingDown(provider, model)) {
+        errors.push(`${provider}/${model}: skipped (cooling down)`);
+        continue;
+      }
       try {
         let reply: string;
+        const label = `${provider}/${model}`;
         if (provider === "gemini") {
-          reply = await tryGemini(apiKey, model, systemPrompt, userMessage, conversationHistory);
+          reply = await withTimeout(
+            tryGemini(apiKey, model, systemPrompt, userMessage, conversationHistory),
+            AI_TIMEOUT_MS, label
+          );
         } else {
-          reply = await tryGroq(apiKey, model, systemPrompt, userMessage, conversationHistory);
+          reply = await withTimeout(
+            tryGroq(apiKey, model, systemPrompt, userMessage, conversationHistory),
+            AI_TIMEOUT_MS, label
+          );
         }
         if (model !== (provider === "gemini" ? _geminiModel : _groqModel)) {
-          logger.warn({ provider, model, errors }, "AI fallback used");
+          logger.warn({ provider, model }, "AI fallback used");
         }
         return { reply, model: `${provider}/${model}` };
       } catch (err: any) {
         const reason = err?.message ?? String(err);
         errors.push(`${provider}/${model}: ${reason}`);
         logger.warn({ provider, model, reason }, "AI model failed, trying next");
+        // Circuit breaker: remember quota/rate-limit failures
+        if (isQuotaError(err) || reason.includes("TIMEOUT")) {
+          markModelFailed(provider, model);
+        }
       }
     }
   }
