@@ -278,11 +278,12 @@ ${agentPersonality ? `--- توجيهات خاصة ---\n\n${agentPersonality}` : 
 }
 
 // Gemini fallback model chain (tried in order when quota/errors occur)
+// Note: gemini-1.5-flash and gemini-1.5-flash-8b are 404 on v1beta (deprecated)
 const GEMINI_MODELS = [
   "gemini-2.0-flash",
-  "gemini-1.5-flash",
-  "gemini-1.5-flash-8b",
   "gemini-2.0-flash-lite",
+  "gemini-2.5-flash-preview-04-17",
+  "gemini-2.0-flash-exp",
 ];
 
 // Groq fallback model chain

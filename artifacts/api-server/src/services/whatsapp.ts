@@ -152,7 +152,9 @@ export async function sendAdminAlert(message: string) {
 // Check if phone is recognized admin (DB or in-memory session)
 async function isAdminPhone(phone: string): Promise<boolean> {
   const savedAdminPhone = await getSetting("adminPhone");
-  return phone === savedAdminPhone || adminSessions.has(phone);
+  // Normalize: strip any @suffix (e.g. @lid, @s.whatsapp.net) before comparing
+  const normalised = (savedAdminPhone ?? "").replace(/@.+$/, "");
+  return phone === normalised || adminSessions.has(phone);
 }
 
 // Remove invisible Unicode chars WhatsApp injects into Arabic messages
@@ -200,7 +202,7 @@ async function handleAdminCommand(text: string, phone: string): Promise<string> 
   // Logout from admin mode (removes from in-memory only, DB stays)
   if (lower === "خروج" || lower === "logout" || lower === "exit") {
     adminSessions.delete(phone);
-    const savedAdminPhone = await getSetting("adminPhone");
+    const savedAdminPhone = (await getSetting("adminPhone") ?? "").replace(/@.+$/, "");
     if (phone === savedAdminPhone) {
       return "ℹ️ رقمك محفوظ كأدمن رئيسي — لن يُحذف من النظام. فقط الجلسة الحالية أُغلقت.\n\nأرسل *أنا كيرا* للعودة.";
     }
@@ -637,7 +639,8 @@ export async function connectWhatsApp() {
         getSetting("autoReply"),
       ]);
 
-      const savedAdminPhone = adminPhone ?? "";
+      // Normalize stored admin phone (strip @lid / @s.whatsapp.net if present)
+      const savedAdminPhone = (adminPhone ?? "").replace(/@.+$/, "");
       const isAdmin = phone === savedAdminPhone || adminSessions.has(phone);
 
       // ─── Admin password check ─────────────────────────────────────
