@@ -28,9 +28,16 @@ const SESSION_DIR = path.join(process.cwd(), ".whatsapp-session");
 // In-memory set of phones that authenticated as admin in this session
 const adminSessions = new Set<string>();
 
+// ─── Settings cache (5 second TTL) — avoids DB round-trip on every message ──
+const _settingsCache = new Map<string, { value: string | null; exp: number }>();
+
 async function getSetting(key: string): Promise<string | null> {
+  const cached = _settingsCache.get(key);
+  if (cached && Date.now() < cached.exp) return cached.value;
   const rows = await db.select().from(settingsTable).where(eq(settingsTable.key, key));
-  return rows[0]?.value ?? null;
+  const value = rows[0]?.value ?? null;
+  _settingsCache.set(key, { value, exp: Date.now() + 5_000 });
+  return value;
 }
 
 async function upsertSetting(key: string, value: string) {
@@ -38,6 +45,7 @@ async function upsertSetting(key: string, value: string) {
     .insert(settingsTable)
     .values({ key, value })
     .onConflictDoUpdate({ target: settingsTable.key, set: { value } });
+  _settingsCache.delete(key); // invalidate cache immediately
 }
 
 async function upsertContact(phone: string, name?: string) {
@@ -535,155 +543,177 @@ export async function connectWhatsApp() {
       }
     });
 
+    // ─── Process one message for one contact ──────────────────────────────────
+    const processOneMessage = async (msg: any) => {
+      if (!msg.message || msg.key.fromMe) return;
+
+      // For "append" (offline/reconnect messages), only process messages from the last 10 minutes
+      if (msg._appendType) {
+        const msgTimestamp = (msg.messageTimestamp as number) * 1000;
+        if (Date.now() - msgTimestamp > 10 * 60 * 1000) return;
+      }
+
+      const jid = msg.key.remoteJid;
+      if (!jid || jid.includes("@g.us") || jid.includes("@broadcast")) return;
+
+      const phone = jid.replace("@s.whatsapp.net", "").replace("@lid", "");
+      const pushName = msg.pushName ?? undefined;
+      const rawText =
+        msg.message.conversation ||
+        msg.message.extendedTextMessage?.text ||
+        msg.message.imageMessage?.caption ||
+        "";
+
+      if (!rawText) return;
+
+      const text = cleanText(rawText);
+      if (!text) return;
+
+      // ── Pre-fetch all settings in parallel to minimise DB latency ──
+      const [contact, adminPhone, maintenanceModeStr, autoReplySetting] = await Promise.all([
+        upsertContact(phone, pushName),
+        getSetting("adminPhone"),
+        getSetting("maintenanceMode"),
+        getSetting("autoReply"),
+      ]);
+
+      const savedAdminPhone = adminPhone ?? "";
+      const isAdmin = phone === savedAdminPhone || adminSessions.has(phone);
+
+      // ─── Admin password check ─────────────────────────────────────
+      const normalizedText = text.toLowerCase().replace(/\s+/g, " ");
+      const isKiraPassword =
+        normalizedText === "أنا كيرا" ||
+        normalizedText === "انا كيرا" ||
+        normalizedText === "كيرا" ||
+        normalizedText === "kira" ||
+        normalizedText === "ana kira";
+
+      if (isKiraPassword) {
+        if (savedAdminPhone && savedAdminPhone !== phone) {
+          // Already has a different admin — fall through to AI
+        } else {
+          await upsertSetting("adminPhone", phone);
+          adminSessions.add(phone);
+          await saveMessage(contact.id, text, "inbound");
+          const isReturning = isAdmin;
+          const greeting = isReturning
+            ? `🔐 *مرحباً مجدداً!*\n\nأنت بالفعل المشرف الرئيسي لهذا النظام.\n\n📋 أرسل *مساعدة* لعرض الأوامر المتاحة.`
+            : `🔐 *وضع المشرف مفعّل*\n\nمرحباً! رقمك (+${phone}) محفوظ الآن كمشرف رئيسي في النظام.\n\n📋 أرسل *مساعدة* لعرض جميع الأوامر المتاحة.`;
+          await sock.sendMessage(jid, { text: greeting });
+          await saveMessage(contact.id, greeting, "outbound", "system");
+          return;
+        }
+      }
+
+      // ─── Admin: execute command OR fall through to AI ────────────
+      if (isAdmin && isAdminCommand(text)) {
+        await saveMessage(contact.id, text, "inbound");
+        const adminReply = await handleAdminCommand(text, phone);
+        await sock.sendMessage(jid, { text: adminReply });
+        await saveMessage(contact.id, adminReply, "outbound", "system/admin");
+        return;
+      }
+
+      // ─── Blocked contacts ─────────────────────────────────────────
+      if (contact.isBlocked) return;
+
+      logger.info({ phone, text: text.slice(0, 50) }, "Inbound message");
+
+      // ─── Maintenance mode (admin bypasses it to keep chatting) ────
+      if (maintenanceModeStr === "true" && !isAdmin) {
+        await saveMessage(contact.id, text, "inbound");
+        const maintenanceMsg =
+          (await getSetting("maintenanceMessage")) ??
+          "⚙️ النظام في وضع الصيانة حالياً. سيعود قريباً — We'll be back soon.";
+        await sock.sendMessage(jid, { text: maintenanceMsg });
+        await saveMessage(contact.id, maintenanceMsg, "outbound", "system/maintenance");
+        return;
+      }
+
+      // ─── Auto-reply via AI (admin + regular users) ────────────────
+      if (autoReplySetting !== "false" || isAdmin) {
+        // Fetch history BEFORE saving the current message to avoid duplication
+        const previousMsgs = await getRecentMessages(contact.id, 12);
+
+        let history = previousMsgs.map((m) => ({
+          role: m.direction === "inbound" ? ("user" as const) : ("assistant" as const),
+          content: m.content,
+        }));
+        while (history.length > 0 && history[0].role !== "user") {
+          history = history.slice(1);
+        }
+        history = history.slice(-10);
+
+        await saveMessage(contact.id, text, "inbound");
+
+        try {
+          // ── Show typing indicator while AI is generating ──
+          await sock.sendPresenceUpdate("composing", jid);
+          const { reply, model } = await generateAIReply(text, history);
+          await sock.sendPresenceUpdate("paused", jid);
+          await sock.sendMessage(jid, { text: reply });
+          await saveMessage(contact.id, reply, "outbound", model);
+        } catch (err: any) {
+          logger.error({ err }, "AI reply failed");
+          try { await sock.sendPresenceUpdate("paused", jid); } catch {}
+
+          const adminRawPhone = (await getSetting("adminPhone"))?.replace(/@.*/, "").replace(/[^0-9]/g, "");
+          if (adminRawPhone) {
+            const now = new Date().toLocaleString("ar-MA", { timeZone: "Africa/Casablanca", hour12: false });
+            const errMsg = err?.message ?? "خطأ غير معروف";
+            const errStack = err?.stack ? `\n📋 Stack:\n${String(err.stack).slice(0, 400)}` : "";
+            const aiUsed = (await getSetting("aiModel")) ?? "gemini";
+            const alertText =
+              `🚨 *خطأ في الذكاء الاصطناعي*\n\n` +
+              `🕐 الوقت: ${now}\n` +
+              `📱 المرسل: +${phone}\n` +
+              `💬 الرسالة: ${text.slice(0, 100)}${text.length > 100 ? "..." : ""}\n` +
+              `🤖 النموذج: ${aiUsed}\n` +
+              `❌ الخطأ: ${errMsg}` +
+              errStack;
+            await sendAdminAlert(alertText);
+          }
+        }
+
+        await db
+          .update(contactsTable)
+          .set({ lastSeen: new Date() })
+          .where(eq(contactsTable.id, contact.id));
+      } else {
+        await saveMessage(contact.id, text, "inbound");
+      }
+    };
+
     sock.ev.on("messages.upsert", async ({ messages, type }: any) => {
       // Accept "notify" (live messages) and "append" (messages received during reconnect)
       if (type !== "notify" && type !== "append") return;
+
+      // ── Group messages by JID so each contact is processed in parallel ──
+      // Messages from the SAME contact are processed sequentially (preserve order).
+      // Messages from DIFFERENT contacts run concurrently.
+      const byJid = new Map<string, any[]>();
       for (const msg of messages) {
-        if (!msg.message || msg.key.fromMe) continue;
-
-        // For "append" (offline/reconnect messages), only process messages from the last 10 minutes
-        if (type === "append") {
-          const msgTimestamp = (msg.messageTimestamp as number) * 1000;
-          if (Date.now() - msgTimestamp > 10 * 60 * 1000) continue;
-        }
-
-        const jid = msg.key.remoteJid;
-        if (!jid || jid.includes("@g.us") || jid.includes("@broadcast")) continue;
-
-        const phone = jid.replace("@s.whatsapp.net", "").replace("@lid", "");
-        const pushName = msg.pushName ?? undefined;
-        const rawText =
-          msg.message.conversation ||
-          msg.message.extendedTextMessage?.text ||
-          msg.message.imageMessage?.caption ||
-          "";
-
-        if (!rawText) continue;
-
-        // Strip invisible Unicode chars WhatsApp injects (RTL marks, ZWSP, etc.)
-        const text = cleanText(rawText);
-        if (!text) continue;
-
-        const contact = await upsertContact(phone, pushName);
-        const adminPhone = (await getSetting("adminPhone")) ?? "";
-        const isAdmin = phone === adminPhone || adminSessions.has(phone);
-
-        // ─── Admin password check ─────────────────────────────────────
-        const normalizedText = text.toLowerCase().replace(/\s+/g, " ");
-        const isKiraPassword =
-          normalizedText === "أنا كيرا" ||
-          normalizedText === "انا كيرا" ||
-          normalizedText === "كيرا" ||
-          normalizedText === "kira" ||
-          normalizedText === "ana kira";
-
-        if (isKiraPassword) {
-          // ── Only ONE admin allowed ──
-          // If there's already a saved admin and it's NOT this phone, reject silently
-          if (adminPhone && adminPhone !== phone) {
-            // Just let it fall through to AI as a normal message
-          } else {
-            // First-time admin OR existing admin re-authenticating
-            await upsertSetting("adminPhone", phone);
-            adminSessions.add(phone);
-            await saveMessage(contact.id, text, "inbound");
-
-            const isReturning = isAdmin; // was already admin before this message
-            const greeting = isReturning
-              ? `🔐 *مرحباً مجدداً!*\n\nأنت بالفعل المشرف الرئيسي لهذا النظام.\n\n📋 أرسل *مساعدة* لعرض الأوامر المتاحة.`
-              : `🔐 *وضع المشرف مفعّل*\n\nمرحباً! رقمك (+${phone}) محفوظ الآن كمشرف رئيسي في النظام.\n\n📋 أرسل *مساعدة* لعرض جميع الأوامر المتاحة.`;
-            await sock.sendMessage(jid, { text: greeting });
-            await saveMessage(contact.id, greeting, "outbound", "system");
-            continue;
-          }
-        }
-
-        // ─── Admin: execute command OR fall through to AI ────────────
-        if (isAdmin && isAdminCommand(text)) {
-          await saveMessage(contact.id, text, "inbound");
-          const adminReply = await handleAdminCommand(text, phone);
-          await sock.sendMessage(jid, { text: adminReply });
-          await saveMessage(contact.id, adminReply, "outbound", "system/admin");
-          continue;
-        }
-
-        // ─── Blocked contacts ─────────────────────────────────────────
-        if (contact.isBlocked) continue;
-
-        logger.info({ phone, text: text.slice(0, 50) }, "Inbound message");
-
-        // ─── Maintenance mode (admin bypasses it to keep chatting) ────
-        const maintenanceMode = (await getSetting("maintenanceMode")) === "true";
-        if (maintenanceMode && !isAdmin) {
-          await saveMessage(contact.id, text, "inbound");
-          const maintenanceMsg =
-            (await getSetting("maintenanceMessage")) ??
-            "⚙️ النظام في وضع الصيانة حالياً. سيعود قريباً — We'll be back soon.";
-          await sock.sendMessage(jid, { text: maintenanceMsg });
-          await saveMessage(contact.id, maintenanceMsg, "outbound", "system/maintenance");
-          continue;
-        }
-
-        // ─── Auto-reply via AI (admin + regular users) ────────────────
-        const autoReply = (await getSetting("autoReply")) ?? "true";
-        if (autoReply === "true" || isAdmin) {
-          // Fetch history BEFORE saving the current message to avoid duplication
-          const previousMsgs = await getRecentMessages(contact.id, 12);
-
-          // Build history pairs and ensure it starts with 'user' (Gemini requirement)
-          let history = previousMsgs.map((m) => ({
-            role: m.direction === "inbound" ? ("user" as const) : ("assistant" as const),
-            content: m.content,
-          }));
-          while (history.length > 0 && history[0].role !== "user") {
-            history = history.slice(1);
-          }
-          history = history.slice(-10); // keep last 10 turns max
-
-          // Now save the current inbound message
-          await saveMessage(contact.id, text, "inbound");
-
-          try {
-            // ── Show typing indicator while AI is generating ──
-            await sock.sendPresenceUpdate("composing", jid);
-            const { reply, model } = await generateAIReply(text, history);
-            await sock.sendPresenceUpdate("paused", jid);
-            await sock.sendMessage(jid, { text: reply });
-            await saveMessage(contact.id, reply, "outbound", model);
-          } catch (err: any) {
-            logger.error({ err }, "AI reply failed");
-            // Stop typing indicator on error
-            try { await sock.sendPresenceUpdate("paused", jid); } catch {}
-
-            // Send detailed error to admin only
-            const adminRawPhone = (await getSetting("adminPhone"))?.replace(/@.*/, "").replace(/[^0-9]/g, "");
-            if (adminRawPhone) {
-              const now = new Date().toLocaleString("ar-MA", { timeZone: "Africa/Casablanca", hour12: false });
-              const errMsg = err?.message ?? "خطأ غير معروف";
-              const errStack = err?.stack ? `\n📋 Stack:\n${String(err.stack).slice(0, 400)}` : "";
-              const aiUsed = (await getSetting("aiModel")) ?? "gemini";
-              const alertText =
-                `🚨 *خطأ في الذكاء الاصطناعي*\n\n` +
-                `🕐 الوقت: ${now}\n` +
-                `📱 المرسل: +${phone}\n` +
-                `💬 الرسالة: ${text.slice(0, 100)}${text.length > 100 ? "..." : ""}\n` +
-                `🤖 النموذج: ${aiUsed}\n` +
-                `❌ الخطأ: ${errMsg}` +
-                errStack;
-              await sendAdminAlert(alertText);
-            }
-
-            // Do NOT send any error message to the regular user — stay silent
-          }
-
-          await db
-            .update(contactsTable)
-            .set({ lastSeen: new Date() })
-            .where(eq(contactsTable.id, contact.id));
-        } else {
-          await saveMessage(contact.id, text, "inbound");
-        }
+        const jid = msg.key?.remoteJid;
+        if (!jid) continue;
+        if (type === "append") (msg as any)._appendType = true;
+        const bucket = byJid.get(jid) ?? [];
+        bucket.push(msg);
+        byJid.set(jid, bucket);
       }
+
+      // Fire one async chain per JID — all chains run in parallel
+      await Promise.allSettled(
+        Array.from(byJid.values()).map(async (msgs) => {
+          for (const msg of msgs) {
+            try {
+              await processOneMessage(msg);
+            } catch (err) {
+              logger.error({ err }, "Unhandled error in processOneMessage");
+            }
+          }
+        })
+      );
     });
   } catch (err) {
     logger.error({ err }, "Failed to connect WhatsApp");

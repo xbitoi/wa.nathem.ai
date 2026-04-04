@@ -347,25 +347,47 @@ export async function generateAIReply(
   userMessage: string,
   conversationHistory: Array<{ role: "user" | "assistant"; content: string }>
 ): Promise<{ reply: string; model: string }> {
-  const aiModel    = (await getSetting("aiModel"))    ?? "gemini";
-  const geminiModel = (await getSetting("geminiModel")) || "gemini-2.0-flash";
-  const groqModel   = (await getSetting("groqModel"))   || "llama-3.3-70b-versatile";
-  const ownerName   = (await getSetting("ownerName"))   ?? "";
-  const ownerPhone  = (await getSetting("ownerPhone"))  ?? "";
-  const ownerEmail  = (await getSetting("ownerEmail"))  ?? "";
-  const projectLink = (await getSetting("projectLink")) ?? "";
-  const agentPersonality = (await getSetting("agentPersonality")) ?? "";
+  // Fetch all needed settings in parallel — single round-trip to DB
+  const [
+    aiModel, geminiModel, groqModel,
+    ownerName, ownerPhone, ownerEmail, projectLink, agentPersonality,
+    geminiApiKey, groqApiKey,
+  ] = await Promise.all([
+    getSetting("aiModel"),
+    getSetting("geminiModel"),
+    getSetting("groqModel"),
+    getSetting("ownerName"),
+    getSetting("ownerPhone"),
+    getSetting("ownerEmail"),
+    getSetting("projectLink"),
+    getSetting("agentPersonality"),
+    getSetting("geminiApiKey"),
+    getSetting("groqApiKey"),
+  ]);
 
-  const geminiApiKey = (await getSetting("geminiApiKey")) ?? "";
-  const groqApiKey   = (await getSetting("groqApiKey"))   ?? "";
+  const _aiModel      = aiModel    ?? "gemini";
+  const _geminiModel  = geminiModel || "gemini-2.0-flash";
+  const _groqModel    = groqModel   || "llama-3.3-70b-versatile";
+  const _ownerName    = ownerName   ?? "";
+  const _ownerPhone   = ownerPhone  ?? "";
+  const _ownerEmail   = ownerEmail  ?? "";
+  const _projectLink  = projectLink ?? "";
+  const _personality  = agentPersonality ?? "";
+  const _geminiKey    = geminiApiKey ?? "";
+  const _groqKey      = groqApiKey   ?? "";
 
-  const systemPrompt = buildSystemPrompt({ ownerName, ownerPhone, ownerEmail, projectLink, agentPersonality });
+  const systemPrompt = buildSystemPrompt({
+    ownerName: _ownerName,
+    ownerPhone: _ownerPhone,
+    ownerEmail: _ownerEmail,
+    projectLink: _projectLink,
+    agentPersonality: _personality,
+  });
 
   // Build ordered provider chain starting from the configured primary provider
-  // Each entry: { provider, apiKey, models[] }
-  const geminiChain = { provider: "gemini", apiKey: geminiApiKey, models: buildModelChain(geminiModel, GEMINI_MODELS) };
-  const groqChain   = { provider: "groq",   apiKey: groqApiKey,   models: buildModelChain(groqModel,   GROQ_MODELS)   };
-  const providerChain = aiModel === "groq"
+  const geminiChain = { provider: "gemini", apiKey: _geminiKey, models: buildModelChain(_geminiModel, GEMINI_MODELS) };
+  const groqChain   = { provider: "groq",   apiKey: _groqKey,   models: buildModelChain(_groqModel,   GROQ_MODELS)   };
+  const providerChain = _aiModel === "groq"
     ? [groqChain, geminiChain]
     : [geminiChain, groqChain];
 
@@ -384,8 +406,7 @@ export async function generateAIReply(
         } else {
           reply = await tryGroq(apiKey, model, systemPrompt, userMessage, conversationHistory);
         }
-        // Success — log if we used a fallback
-        if (model !== (provider === "gemini" ? geminiModel : groqModel)) {
+        if (model !== (provider === "gemini" ? _geminiModel : _groqModel)) {
           logger.warn({ provider, model, errors }, "AI fallback used");
         }
         return { reply, model: `${provider}/${model}` };
@@ -393,16 +414,13 @@ export async function generateAIReply(
         const reason = err?.message ?? String(err);
         errors.push(`${provider}/${model}: ${reason}`);
         logger.warn({ provider, model, reason }, "AI model failed, trying next");
-        // Only skip to next model on quota/rate/availability errors
-        // For hard config errors (bad API key, invalid model name), still try next
-        // We always continue to give maximum resilience
       }
     }
   }
 
-  // All providers and models exhausted — return static project info
+  // All providers exhausted — static fallback
   logger.error({ errors }, "All AI providers failed, using static fallback");
-  const reply = buildStaticFallback({ ownerName, ownerPhone, ownerEmail, projectLink });
+  const reply = buildStaticFallback({ ownerName: _ownerName, ownerPhone: _ownerPhone, ownerEmail: _ownerEmail, projectLink: _projectLink });
   return { reply, model: "static/fallback" };
 }
 
