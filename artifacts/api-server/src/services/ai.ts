@@ -134,6 +134,8 @@ Test credentials:
 المهندسون: يرفعون صورة الجدول الورقي ويستخرج النظام البيانات تلقائياً بدقة عالية.
 قابل للتوسع بإضافة أي فئة وظيفية أخرى حسب هيكل المؤسسة.
 
+ملاحظة مهمة: النسخة الحالية من التطبيق هي مثال تطبيقي على مجموعة Monobloc XJX، وهي نموذج يمكن توسيعه مستقبلاً ليشمل باقي المجموعات والخطوط الإنتاجية الأخرى داخل المصنع.
+
 المزايا التقنية: واجهة ثنائية اللغة (عربي - إنجليزي) - استيراد مباشر من Excel - نظام صلاحيات مرن - وضع ليلي ونهاري - دعم كامل للبيئات الصناعية
 
 قابلية التطوير: النظام مبني على بنية مرنة تتيح إضافة ميزات جديدة مستقبلاً بحسب احتياجات المؤسسة، سواء تقارير متقدمة، تكامل مع أنظمة ERP، أو أي وظيفة أخرى مطلوبة.
@@ -157,6 +159,8 @@ Solution: All data on one clear, organized screen — instant review with zero p
 
 Engineers: Upload a paper table image (schéma), the system extracts data automatically with high accuracy.
 Scalable to any additional role based on the organization's structure.
+
+Important note: The current version is a working implementation for the Monobloc XJX group — a proven model ready to be extended to cover other production groups and lines across the factory.
 
 Technical advantages: Bilingual UI (Arabic - English) | Direct Excel import | Flexible role-based access control | Dark/Light mode | Industrial environment support
 
