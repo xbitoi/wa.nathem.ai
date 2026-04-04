@@ -1,7 +1,7 @@
 import { logger } from "../lib/logger";
 import { db, contactsTable, messagesTable, settingsTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
-import { generateAIReply } from "./ai";
+import { generateAIReply, generateAdminReply } from "./ai";
 import fs from "fs";
 import path from "path";
 
@@ -814,22 +814,53 @@ export async function connectWhatsApp() {
         try {
           // ── Show typing indicator while AI is generating ──
           await sock.sendPresenceUpdate("composing", jid);
-          let { reply, model } = await generateAIReply(text, history, isReturningUser, contact.messageCount);
-          await sock.sendPresenceUpdate("paused", jid);
 
-          // ── Intercept flow tags — start multi-turn state machine ────
-          if (reply.includes("[CONTACT_OWNER_START]")) {
-            // Mode: just notify admin with user's name (no message needed)
-            reply = reply.replace(/\[CONTACT_OWNER_START\]/g, "").trim();
-            pendingForwards.set(phone, { step: "ask_name", mode: "contact" });
-            reply += `\n\nما اسمك حتى أُعرّفك لصاحب المشروع؟ 👤`;
-          } else if (reply.includes("[FORWARD_ADMIN_START]")) {
-            // Mode: user wants to send a specific message
-            reply = reply.replace(/\[FORWARD_ADMIN_START\]/g, "").trim();
-            pendingForwards.set(phone, { step: "ask_name", mode: "forward" });
-            reply += `\n\nما اسمك حتى أُعرّفك لصاحب المشروع؟ 👤`;
+          let reply: string;
+          let model: string;
+
+          if (isAdmin) {
+            // ── Admin: conversational AI with natural language settings control ──
+            const adminResult = await generateAdminReply(text, history);
+            reply = adminResult.reply;
+            model = adminResult.model;
+
+            // Apply any [SET key=value] actions returned by admin AI
+            const ALLOWED_ADMIN_KEYS = new Set([
+              "aiModel", "geminiModel", "groqModel",
+              "maintenanceMode", "maintenanceMessage",
+              "ownerName", "ownerPhone", "ownerEmail",
+              "projectName", "projectLink",
+              "autoReply", "agentPersonality",
+            ]);
+            const appliedKeys: string[] = [];
+            for (const [key, value] of Object.entries(adminResult.actions)) {
+              if (!ALLOWED_ADMIN_KEYS.has(key)) continue;
+              await upsertSetting(key, value);
+              appliedKeys.push(`${key}=${value}`);
+              logger.info({ key, value }, "Admin AI applied setting change");
+            }
+            if (appliedKeys.length > 0) {
+              reply += `\n\n✅ *تم تطبيق:* ${appliedKeys.map(k => `\`${k}\``).join(", ")}`;
+            }
+          } else {
+            // ── Regular user: business AI agent ──
+            const result = await generateAIReply(text, history, isReturningUser, contact.messageCount);
+            reply = result.reply;
+            model = result.model;
+
+            // ── Intercept flow tags — start multi-turn state machine ────
+            if (reply.includes("[CONTACT_OWNER_START]")) {
+              reply = reply.replace(/\[CONTACT_OWNER_START\]/g, "").trim();
+              pendingForwards.set(phone, { step: "ask_name", mode: "contact" });
+              reply += `\n\nما اسمك حتى أُعرّفك لصاحب المشروع؟ 👤`;
+            } else if (reply.includes("[FORWARD_ADMIN_START]")) {
+              reply = reply.replace(/\[FORWARD_ADMIN_START\]/g, "").trim();
+              pendingForwards.set(phone, { step: "ask_name", mode: "forward" });
+              reply += `\n\nما اسمك حتى أُعرّفك لصاحب المشروع؟ 👤`;
+            }
           }
 
+          await sock.sendPresenceUpdate("paused", jid);
           await sock.sendMessage(jid, { text: reply });
           await saveMessage(contact.id, reply, "outbound", model);
         } catch (err: any) {

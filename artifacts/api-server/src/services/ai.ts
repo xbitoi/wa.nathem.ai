@@ -470,3 +470,113 @@ function buildModelChain(preferred: string, allModels: string[]): string[] {
   const rest = allModels.filter((m) => m !== preferred);
   return [preferred, ...rest];
 }
+
+// ── Admin conversational AI — natural chat + natural language settings control ─
+function buildAdminSystemPrompt(s: Record<string, string | null>): string {
+  const aiModel      = s["aiModel"]      ?? "gemini";
+  const geminiModel  = s["geminiModel"]  ?? "gemini-2.0-flash";
+  const groqModel    = s["groqModel"]    ?? "llama-3.3-70b-versatile";
+  const ownerName    = s["ownerName"]    ?? "غير مضبوط";
+  const ownerPhone   = s["ownerPhone"]   ?? "غير مضبوط";
+  const ownerEmail   = s["ownerEmail"]   ?? "غير مضبوط";
+  const projectName  = s["projectName"]  ?? "Yazaki AI Table Reader";
+  const projectLink  = s["projectLink"]  ?? "غير مضبوط";
+  const maintenance  = s["maintenanceMode"] === "true" ? "مفعّل" : "معطّل";
+  const autoReply    = s["autoReply"] !== "false" ? "مفعّل" : "معطّل";
+  const personality  = s["agentPersonality"] ?? "افتراضية";
+
+  return `أنت "نور" — مساعد ذكي يتحدث مع صاحبه ومديره الأدمن مباشرةً.
+تكلّم بشكل طبيعي، ودّي، ومباشر بالعربية (أو بالإنجليزية إذا كتب هو بالإنجليزية).
+لا تستخدم أسلوب "الوكيل التجاري" — أنت هنا تتكلم مع صاحبك، ليس مع زبون.
+
+الإعدادات الحالية للنظام:
+- مزود الذكاء الاصطناعي النشط: ${aiModel === "gemini" ? "Google Gemini" : "Groq"}
+- موديل Gemini: ${geminiModel}
+- موديل Groq: ${groqModel}
+- صاحب المشروع: ${ownerName} | هاتف: ${ownerPhone} | إيميل: ${ownerEmail}
+- اسم المشروع: ${projectName}
+- رابط المشروع: ${projectLink}
+- وضع الصيانة: ${maintenance}
+- الرد التلقائي: ${autoReply}
+- الشخصية المخصصة: ${personality}
+
+قواعد تغيير الإعدادات:
+إذا طلب منك الأدمن تغيير أي إعداد بأي صياغة طبيعية، أضف في آخر ردك هذا التاغ:
+[SET key=value]
+
+القيم الصحيحة للمفاتيح:
+- aiModel → "gemini" أو "groq"
+- geminiModel → اسم موديل Gemini (مثل: gemini-2.0-flash, gemini-1.5-pro)
+- groqModel → اسم موديل Groq (مثل: llama-3.3-70b-versatile, qwen/qwen3-32b, compound-beta)
+- maintenanceMode → "true" أو "false"
+- maintenanceMessage → نص رسالة الصيانة
+- ownerName → الاسم الكامل
+- ownerPhone → رقم الهاتف
+- ownerEmail → الإيميل
+- projectName → اسم المشروع
+- projectLink → رابط URL
+- autoReply → "true" أو "false"
+- agentPersonality → وصف الشخصية المخصصة
+
+يمكن تغيير عدة إعدادات في رسالة واحدة بأكثر من تاغ:
+[SET aiModel=groq]
+[SET groqModel=llama-3.3-70b-versatile]
+
+إذا لم يطلب تغيير أي إعداد، لا تضيف التاغ إطلاقاً.
+لا تشرح للأدمن كيف تعمل الأوامر ما لم يسأل — فقط نفّذ.`;
+}
+
+export async function generateAdminReply(
+  userMessage: string,
+  conversationHistory: Array<{ role: "user" | "assistant"; content: string }>
+): Promise<{ reply: string; model: string; actions: Record<string, string> }> {
+  const s = await getAllSettings();
+  const systemPrompt = buildAdminSystemPrompt(s);
+
+  const _aiModel     = s["aiModel"]    ?? "gemini";
+  const _geminiModel = s["geminiModel"] || "gemini-2.0-flash";
+  const _groqModel   = s["groqModel"]   || "llama-3.3-70b-versatile";
+  const _geminiKey   = s["geminiApiKey"] ?? "";
+  const _groqKey     = s["groqApiKey"]   ?? "";
+
+  const geminiChain = { provider: "gemini", apiKey: _geminiKey, models: buildModelChain(_geminiModel, GEMINI_MODELS) };
+  const groqChain   = { provider: "groq",   apiKey: _groqKey,   models: buildModelChain(_groqModel,   GROQ_MODELS)   };
+  const providerChain = _aiModel === "groq" ? [groqChain, geminiChain] : [geminiChain, groqChain];
+
+  let rawReply = "";
+  let usedModel = "static/fallback";
+
+  outer:
+  for (const { provider, apiKey, models } of providerChain) {
+    if (!apiKey) continue;
+    for (const model of models) {
+      if (isModelCoolingDown(provider, model)) continue;
+      try {
+        const label = `${provider}/${model}`;
+        rawReply = provider === "gemini"
+          ? await withTimeout(tryGemini(apiKey, model, systemPrompt, userMessage, conversationHistory), AI_TIMEOUT_MS, label)
+          : await withTimeout(tryGroq(apiKey, model, systemPrompt, userMessage, conversationHistory), AI_TIMEOUT_MS, label);
+        usedModel = `${provider}/${model}`;
+        break outer;
+      } catch (err: any) {
+        const reason = err?.message ?? String(err);
+        logger.warn({ provider, model, reason }, "Admin AI model failed, trying next");
+        if (isQuotaError(err) || reason.includes("TIMEOUT")) markModelFailed(provider, model);
+      }
+    }
+  }
+
+  if (!rawReply) rawReply = "حدث خطأ مؤقت. جرّب مجدداً.";
+
+  // Extract [SET key=value] tags from reply
+  const actions: Record<string, string> = {};
+  const actionRegex = /\[SET\s+([a-zA-Z]+)\s*=\s*([^\]]+)\]/g;
+  let match: RegExpExecArray | null;
+  while ((match = actionRegex.exec(rawReply)) !== null) {
+    actions[match[1].trim()] = match[2].trim();
+  }
+  // Clean reply — remove all [SET ...] tags (new regex literal to avoid lastIndex issue)
+  const reply = rawReply.replace(/\[SET\s+[a-zA-Z]+\s*=\s*[^\]]+\]/g, "").replace(/\n{3,}/g, "\n\n").trim();
+
+  return { reply, model: usedModel, actions };
+}
