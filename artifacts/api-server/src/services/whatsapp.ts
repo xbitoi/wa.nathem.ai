@@ -422,6 +422,45 @@ async function handleAdminCommand(text: string, phone: string): Promise<string> 
   return `❓ أمر غير معروف. أرسل *مساعدة* لعرض قائمة الأوامر المتاحة.`;
 }
 
+// ─── Reconnect state ─────────────────────────────────────────────────────────
+let reconnectAttempts = 0;
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+function clearHeartbeat() {
+  if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+}
+
+function startHeartbeat(sock: any) {
+  clearHeartbeat();
+  heartbeatTimer = setInterval(async () => {
+    if (state.status !== "connected") return;
+    try {
+      // Lightweight ping: read connection state — throws if socket is dead
+      const isOpen = sock.ws?.readyState === 1; // WebSocket.OPEN = 1
+      if (!isOpen) {
+        logger.warn("Heartbeat: socket not open — triggering reconnect");
+        state.status = "disconnected";
+        state.client = null;
+        clearHeartbeat();
+        scheduleReconnect();
+      }
+    } catch (_) {
+      state.status = "disconnected";
+      state.client = null;
+      clearHeartbeat();
+      scheduleReconnect();
+    }
+  }, 30_000); // check every 30 seconds
+}
+
+function scheduleReconnect() {
+  reconnectAttempts++;
+  // Exponential backoff: 3s, 6s, 12s, 24s … capped at 60s
+  const delay = Math.min(3000 * Math.pow(2, reconnectAttempts - 1), 60_000);
+  logger.info({ attempt: reconnectAttempts, delayMs: delay }, "Scheduling WhatsApp reconnect");
+  setTimeout(connectWhatsApp, delay);
+}
+
 export async function connectWhatsApp() {
   if (state.status === "connected" || state.status === "connecting") return;
 
@@ -464,10 +503,12 @@ export async function connectWhatsApp() {
       if (connection === "open") {
         state.status = "connected";
         state.qr = null;
+        reconnectAttempts = 0; // reset backoff on successful connection
         const user = sock.user;
         state.phone = user?.id?.split(":")[0] ?? null;
         state.name = user?.name ?? null;
         logger.info({ phone: state.phone }, "WhatsApp connected");
+        startHeartbeat(sock); // start keep-alive watchdog
       }
 
       if (connection === "close") {
@@ -477,6 +518,7 @@ export async function connectWhatsApp() {
         state.phone = null;
         state.name = null;
         state.client = null;
+        clearHeartbeat();
         logger.info({ reason, wasLoggedOut }, "WhatsApp disconnected");
 
         if (wasLoggedOut) {
@@ -484,11 +526,11 @@ export async function connectWhatsApp() {
           if (fs.existsSync(SESSION_DIR)) {
             fs.rmSync(SESSION_DIR, { recursive: true, force: true });
           }
-          // Auto-restart to generate a new QR code immediately
+          reconnectAttempts = 0;
           setTimeout(connectWhatsApp, 1500);
         } else {
-          // Network/server issue — reconnect automatically
-          setTimeout(connectWhatsApp, 3000);
+          // Network/server issue — reconnect with exponential backoff
+          scheduleReconnect();
         }
       }
     });
@@ -499,10 +541,10 @@ export async function connectWhatsApp() {
       for (const msg of messages) {
         if (!msg.message || msg.key.fromMe) continue;
 
-        // For "append" (offline/reconnect messages), only process messages from the last 5 minutes
+        // For "append" (offline/reconnect messages), only process messages from the last 10 minutes
         if (type === "append") {
           const msgTimestamp = (msg.messageTimestamp as number) * 1000;
-          if (Date.now() - msgTimestamp > 5 * 60 * 1000) continue;
+          if (Date.now() - msgTimestamp > 10 * 60 * 1000) continue;
         }
 
         const jid = msg.key.remoteJid;
