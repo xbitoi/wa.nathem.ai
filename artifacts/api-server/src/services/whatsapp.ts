@@ -433,18 +433,23 @@ export async function connectWhatsApp() {
 
       if (connection === "close") {
         const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
-        const shouldReconnect = reason !== DisconnectReason.loggedOut;
+        const wasLoggedOut = reason === DisconnectReason.loggedOut;
         state.status = "disconnected";
         state.phone = null;
         state.name = null;
         state.client = null;
-        logger.info({ reason, shouldReconnect }, "WhatsApp disconnected");
-        if (shouldReconnect) {
-          setTimeout(connectWhatsApp, 3000);
-        } else {
+        logger.info({ reason, wasLoggedOut }, "WhatsApp disconnected");
+
+        if (wasLoggedOut) {
+          // Clear old session so a fresh QR code is generated
           if (fs.existsSync(SESSION_DIR)) {
             fs.rmSync(SESSION_DIR, { recursive: true, force: true });
           }
+          // Auto-restart to generate a new QR code immediately
+          setTimeout(connectWhatsApp, 1500);
+        } else {
+          // Network/server issue — reconnect automatically
+          setTimeout(connectWhatsApp, 3000);
         }
       }
     });
