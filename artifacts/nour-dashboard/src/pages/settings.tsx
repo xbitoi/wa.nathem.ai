@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Eye, EyeOff, RefreshCw, CheckCircle2, AlertCircle, Trash2, MessageSquareOff, UsersRound } from "lucide-react";
+import { Loader2, Eye, EyeOff, RefreshCw, CheckCircle2, AlertCircle, Trash2, MessageSquareOff, UsersRound, CloudOff, Cloud, CloudUpload } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -44,6 +44,7 @@ interface ModelOption {
 }
 
 type FetchStatus = "idle" | "loading" | "success" | "error";
+type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 function ModelSelector({
   provider,
@@ -148,6 +149,21 @@ function ModelSelector({
   );
 }
 
+function SaveIndicator({ status }: { status: SaveStatus }) {
+  if (status === "idle") return null;
+  return (
+    <div className={`flex items-center gap-1.5 text-xs transition-all ${
+      status === "saving" ? "text-muted-foreground" :
+      status === "saved"  ? "text-green-400" :
+      "text-red-400"
+    }`}>
+      {status === "saving" && <><CloudUpload className="h-3.5 w-3.5 animate-pulse" /> جاري الحفظ...</>}
+      {status === "saved"  && <><Cloud className="h-3.5 w-3.5" /> تم الحفظ</>}
+      {status === "error"  && <><CloudOff className="h-3.5 w-3.5" /> فشل الحفظ</>}
+    </div>
+  );
+}
+
 export default function Settings() {
   const { data: settings, isLoading } = useGetSettings();
   const updateMutation = useUpdateSettings();
@@ -156,6 +172,10 @@ export default function Settings() {
 
   const [showGemini, setShowGemini] = useState(false);
   const [showGroq, setShowGroq] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isPopulatedRef = useRef(false);
 
   const clearMessagesMutation = useClearMessages({
     mutation: {
@@ -192,6 +212,7 @@ export default function Settings() {
 
   useEffect(() => {
     if (settings) {
+      isPopulatedRef.current = false;
       form.reset({
         ...settings,
         ownerName: settings.ownerName || "",
@@ -209,20 +230,44 @@ export default function Settings() {
         maintenanceMode: (settings as any).maintenanceMode ?? false,
         maintenanceMessage: (settings as any).maintenanceMessage || "⚙️ النظام في وضع الصيانة حالياً. سيعود قريباً — We'll be back soon.",
       });
+      // Mark as populated after a tick so the watch subscription doesn't fire
+      setTimeout(() => { isPopulatedRef.current = true; }, 100);
     }
   }, [settings, form]);
 
-  const onSubmit = (data: SettingsFormValues) => {
-    updateMutation.mutate({ data: data as any }, {
-      onSuccess: (newSettings) => {
-        toast({ title: "Settings Saved", description: "Configuration updated successfully." });
-        queryClient.setQueryData(getGetSettingsQueryKey(), newSettings);
-      },
-      onError: () => {
-        toast({ title: "Error", description: "Failed to save settings.", variant: "destructive" });
-      }
+  // Auto-save: watch all fields, debounce 1.5 seconds
+  useEffect(() => {
+    const subscription = form.watch(async () => {
+      if (!isPopulatedRef.current) return;
+
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+
+      saveTimerRef.current = setTimeout(async () => {
+        const isValid = await form.trigger();
+        if (!isValid) return;
+
+        const data = form.getValues();
+        setSaveStatus("saving");
+
+        updateMutation.mutate({ data: data as any }, {
+          onSuccess: (newSettings) => {
+            queryClient.setQueryData(getGetSettingsQueryKey(), newSettings);
+            setSaveStatus("saved");
+            setTimeout(() => setSaveStatus("idle"), 2500);
+          },
+          onError: () => {
+            setSaveStatus("error");
+            setTimeout(() => setSaveStatus("idle"), 3000);
+          },
+        });
+      }, 1500);
     });
-  };
+
+    return () => {
+      subscription.unsubscribe();
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [form, updateMutation, queryClient]);
 
   const geminiApiKey = form.watch("geminiApiKey") ?? "";
   const groqApiKey = form.watch("groqApiKey") ?? "";
@@ -235,13 +280,16 @@ export default function Settings() {
 
   return (
     <div className="space-y-5 max-w-4xl mx-auto pb-12">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">الإعدادات</h1>
-        <p className="text-muted-foreground mt-1 text-sm">إعداد تفاصيل المشروع وسلوك الذكاء الاصطناعي.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">الإعدادات</h1>
+          <p className="text-muted-foreground mt-1 text-sm">إعداد تفاصيل المشروع وسلوك الذكاء الاصطناعي.</p>
+        </div>
+        <SaveIndicator status={saveStatus} />
       </div>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+        <form className="space-y-8">
 
           {/* Owner Info */}
           <Card className="bg-card/50 backdrop-blur border-border/50">
@@ -500,11 +548,11 @@ export default function Settings() {
                 </FormItem>
               )} />
             </CardContent>
-            <CardFooter className="bg-muted/10 border-t border-border/50 pt-6">
-              <Button type="submit" disabled={updateMutation.isPending} data-testid="btn-save-settings">
-                {updateMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                Save Configuration
-              </Button>
+            <CardFooter className="bg-muted/10 border-t border-border/50 pt-4">
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Cloud className="h-3.5 w-3.5" />
+                يُحفظ تلقائياً بعد 1.5 ثانية من آخر تغيير
+              </p>
             </CardFooter>
           </Card>
 
@@ -514,89 +562,72 @@ export default function Settings() {
       {/* ─── Data Management Card (outside Form) ─────────────────── */}
       <Card className="border-destructive/40">
         <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-destructive/10">
-              <Trash2 className="h-5 w-5 text-destructive" />
-            </div>
-            <div>
-              <CardTitle className="text-destructive">إدارة البيانات</CardTitle>
-              <CardDescription>حذف الرسائل والجهات. هذه العمليات لا يمكن التراجع عنها.</CardDescription>
-            </div>
-          </div>
+          <CardTitle className="flex items-center gap-2 text-destructive">
+            <Trash2 className="h-5 w-5" />
+            إدارة البيانات
+          </CardTitle>
+          <CardDescription>
+            حذف البيانات المخزنة — لا يمكن التراجع عن هذه الإجراءات.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-
-          {/* Clear messages */}
-          <div className="rounded-lg border border-border/60 p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <MessageSquareOff className="h-4 w-4 text-muted-foreground" />
-              <span className="font-medium text-sm">مسح جميع الرسائل</span>
-            </div>
-            <p className="text-sm text-muted-foreground">يحذف كل سجل الرسائل مع الإبقاء على قائمة جهات الاتصال.</p>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" size="sm" className="w-full border-destructive/40 text-destructive hover:bg-destructive/10" disabled={clearMessagesMutation.isPending}>
-                  {clearMessagesMutation.isPending ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Trash2 className="mr-2 h-3 w-3" />}
+        <CardContent className="flex flex-col sm:flex-row gap-3">
+          {/* Clear Messages */}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 gap-2">
+                <MessageSquareOff className="h-4 w-4" />
+                مسح كل الرسائل
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>تأكيد مسح الرسائل</AlertDialogTitle>
+                <AlertDialogDescription>
+                  سيتم حذف كل سجلات المحادثات من قاعدة البيانات. لن تتأثر جهات الاتصال. هذا الإجراء لا يمكن التراجع عنه.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => clearMessagesMutation.mutate({})}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {clearMessagesMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   مسح الرسائل
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>مسح جميع الرسائل؟</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    سيتم حذف كل سجل المحادثات نهائياً. جهات الاتصال ستبقى في النظام لكن بدون رسائل. هذا الإجراء لا يمكن التراجع عنه.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>إلغاء</AlertDialogCancel>
-                  <AlertDialogAction
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    onClick={() => clearMessagesMutation.mutate({})}
-                  >
-                    نعم، احذف الرسائل
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
-          {/* Clear all data */}
-          <div className="rounded-lg border border-border/60 p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <UsersRound className="h-4 w-4 text-muted-foreground" />
-              <span className="font-medium text-sm">مسح كل البيانات</span>
-            </div>
-            <p className="text-sm text-muted-foreground">يحذف جميع جهات الاتصال وكل رسائلها — إعادة ضبط كاملة.</p>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm" className="w-full" disabled={clearContactsMutation.isPending}>
-                  {clearContactsMutation.isPending ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Trash2 className="mr-2 h-3 w-3" />}
-                  مسح كل البيانات
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>مسح كل البيانات؟</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    سيتم حذف <strong>جميع جهات الاتصال وجميع الرسائل</strong> نهائياً. النظام سيعود كأنه جديد. هذا الإجراء لا يمكن التراجع عنه إطلاقاً.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>إلغاء</AlertDialogCancel>
-                  <AlertDialogAction
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    onClick={() => clearContactsMutation.mutate()}
-                  >
-                    نعم، احذف كل شيء
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-
+          {/* Clear Contacts */}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 gap-2">
+                <UsersRound className="h-4 w-4" />
+                مسح جهات الاتصال والرسائل
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>تأكيد مسح جهات الاتصال</AlertDialogTitle>
+                <AlertDialogDescription>
+                  سيتم حذف كل جهات الاتصال وجميع الرسائل المرتبطة بها. هذا الإجراء لا يمكن التراجع عنه.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => clearContactsMutation.mutate({})}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {clearContactsMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  مسح الكل
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </CardContent>
       </Card>
-
     </div>
   );
 }
