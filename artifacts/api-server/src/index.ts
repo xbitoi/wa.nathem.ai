@@ -15,6 +15,20 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
+// ─── Global crash guards ─────────────────────────────────────────────────────
+// Prevent the Node process from dying on unhandled promise rejections or
+// uncaught exceptions — log them instead so the server keeps running 24/7.
+
+process.on("unhandledRejection", (reason: unknown) => {
+  logger.error({ reason }, "Unhandled promise rejection — server kept alive");
+});
+
+process.on("uncaughtException", (err: Error) => {
+  logger.error({ err }, "Uncaught exception — server kept alive");
+});
+
+// ─── Start HTTP server ───────────────────────────────────────────────────────
+
 app.listen(port, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");

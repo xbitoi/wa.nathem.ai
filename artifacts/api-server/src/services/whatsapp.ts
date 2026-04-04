@@ -491,6 +491,7 @@ async function handleAdminCommand(text: string, phone: string): Promise<string> 
 // ─── Reconnect state ─────────────────────────────────────────────────────────
 let reconnectAttempts = 0;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let disconnectedAt: number | null = null; // timestamp of last disconnect
 
 function clearHeartbeat() {
   if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
@@ -498,25 +499,19 @@ function clearHeartbeat() {
 
 function startHeartbeat(sock: any) {
   clearHeartbeat();
+  // Send a WhatsApp presence keepalive every 4 minutes to keep the session alive.
+  // Baileys already fires connection.update → "close" when the socket truly drops,
+  // so we do NOT duplicate reconnect logic here — just keep the session warm.
   heartbeatTimer = setInterval(async () => {
     if (state.status !== "connected") return;
     try {
-      // Lightweight ping: read connection state — throws if socket is dead
-      const isOpen = sock.ws?.readyState === 1; // WebSocket.OPEN = 1
-      if (!isOpen) {
-        logger.warn("Heartbeat: socket not open — triggering reconnect");
-        state.status = "disconnected";
-        state.client = null;
-        clearHeartbeat();
-        scheduleReconnect();
-      }
+      await sock.sendPresenceUpdate("available");
     } catch (_) {
-      state.status = "disconnected";
-      state.client = null;
-      clearHeartbeat();
-      scheduleReconnect();
+      // If the send fails, Baileys' own connection.update will handle the reconnect.
+      // We only log — no manual reconnect to avoid double-reconnect storms.
+      logger.warn("Heartbeat keepalive failed — waiting for Baileys connection.update");
     }
-  }, 30_000); // check every 30 seconds
+  }, 4 * 60_000); // every 4 minutes
 }
 
 function scheduleReconnect() {
@@ -567,21 +562,26 @@ export async function connectWhatsApp() {
       }
 
       if (connection === "open") {
+        const offlineMs = disconnectedAt ? Date.now() - disconnectedAt : 0;
         state.status = "connected";
         state.qr = null;
-        reconnectAttempts = 0; // reset backoff on successful connection
+        reconnectAttempts = 0;
+        disconnectedAt = null;
         const user = sock.user;
         state.phone = user?.id?.split(":")[0] ?? null;
         state.name = user?.name ?? null;
-        logger.info({ phone: state.phone }, "WhatsApp connected");
-        startHeartbeat(sock); // start keep-alive watchdog
-        // After 5 seconds (let connection stabilise), catch up with unanswered messages
-        setTimeout(() => catchUpUnanswered(sock), 5000);
+        logger.info({ phone: state.phone, offlineMs }, "WhatsApp connected");
+        startHeartbeat(sock);
+        // Only run catch-up if we were offline for more than 60 seconds (real gap, not quick reconnect)
+        if (offlineMs > 60_000) {
+          setTimeout(() => catchUpUnanswered(sock), 5000);
+        }
       }
 
       if (connection === "close") {
         const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
         const wasLoggedOut = reason === DisconnectReason.loggedOut;
+        if (!disconnectedAt) disconnectedAt = Date.now(); // record first disconnect time
         state.status = "disconnected";
         state.phone = null;
         state.name = null;

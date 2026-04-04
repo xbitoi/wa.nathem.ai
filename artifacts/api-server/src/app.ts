@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
@@ -31,6 +31,17 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
+
+// ─── Global Express error handler ───────────────────────────────────────────
+// Catches any error thrown (or passed via next(err)) inside route handlers.
+// Prevents an unhandled Express error from crashing the process.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  logger.error({ err }, "Unhandled route error");
+  if (!res.headersSent) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 connectWhatsApp().catch((err) => logger.error({ err }, "Initial WhatsApp connect failed"));
 
