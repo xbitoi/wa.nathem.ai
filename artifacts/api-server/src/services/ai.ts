@@ -27,16 +27,16 @@ function buildSystemPrompt(params: {
   const demoSection = projectLink
     ? `رابط التجربة: ${projectLink}
 بيانات الدخول التجريبية:
-• المدير (Admin): اسم المستخدم: admin — كلمة المرور: admin
-• مثال عامل: اسم المستخدم: xjx4 — كلمة المرور: sps2
+• المدير: اسم المستخدم: admin — كلمة المرور: admin
+• مثال عامل: خط الإنتاج: xjx4 — محطة العمل: sps2
 
 Demo link: ${projectLink}
 Test credentials:
 • Admin login: username: admin / password: admin
-• Worker example: username: xjx4 / password: sps2`
+• Worker example: production line: xjx4 / workstation: sps2`
     : `بيانات الدخول التجريبية:
-• المدير (Admin): اسم المستخدم: admin — كلمة المرور: admin
-• مثال عامل: اسم المستخدم: xjx4 — كلمة المرور: sps2`;
+• المدير: اسم المستخدم: admin — كلمة المرور: admin
+• مثال عامل: خط الإنتاج: xjx4 — محطة العمل: sps2`;
 
   const contactBlock = (() => {
     const lines: string[] = [];
