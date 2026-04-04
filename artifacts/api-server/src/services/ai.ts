@@ -62,6 +62,8 @@ Test credentials:
 
 مهم: عند ذكر كلمة "مخططات" اكتبها دائماً هكذا: مخططات (شيمة).
 
+مهم: عند ذكر كلمة "سلك" أو "اسلاك" اكتبها دائماً هكذا: سلك (حبل كهربائي) / اسلاك (حبال كهربائية).
+
 مهم: مشروع Yazaki AI Table Reader أنشأه شخص واحد بمفرده، لا تقل "الفريق" أو "المطورون" عند الحديث عن من بنى المشروع.
 
 --- شعار المشروع وهويته ---
@@ -115,12 +117,22 @@ Test credentials:
 [عربي]
 حل رقمي متكامل لتحويل جداول الاسلاك الكهربائية من صور ورقية إلى بيانات منظمة قابلة للاستخدام الفوري داخل بيئة الإنتاج، مما يُقلّص وقت الإدخال اليدوي ويُلغي الاخطاء البشرية بشكل كامل.
 
-الفئات المستهدفة وصلاحياتها:
-- العمال: يدخلون رقم خط الإنتاج ورقمهم الوظيفي ويظهر الجدول التشغيلي فوراً
-- الموزعون: يتابعون خطط التوزيع وكميات الاسلاك لكل خط إنتاج
-- فريق ضبط الجودة: يراجعون البيانات ويتحققون من مطابقتها للمواصفات
-- المهندسون: يرفعون صورة الجدول الورقي ويستخرج النظام البيانات تلقائياً بدقة عالية
-- قابل للتوسع بإضافة أي فئة وظيفية أخرى حسب هيكل المؤسسة
+الفئات المستهدفة ومشاكلها التي يحلها النظام:
+
+العمال:
+المشكلة: صعوبة إيجاد الورقة المناسبة (مثل DAD أو DAG) وسط الأوراق المبعثرة، وصعوبة قراءة بيانات السلك (حبل كهربائي) لأن الخانات صغيرة والورقة غير واضحة، وأحياناً يعجز العامل عن إيجاد الورقة أصلاً.
+الحل: يدخل العامل رقم خط الإنتاج ورقمه الوظيفي فيظهر الجدول التشغيلي رقمياً واضحاً فوراً — لا بحث، لا ورق، لا قراءة خاطئة.
+
+الموزعون:
+المشكلة: صعوبة تحديد مكان كل سلك (حبل كهربائي) وأي محطة عامل تحتاجه، وبعض الاسلاك (حبال كهربائية) متشابهة في اللون لكن مختلفة في الطول مما يسبب خلطاً وضياع وقت في البحث عن المكان الصحيح.
+الحل: رؤية رقمية واضحة لكل سلك (حبل كهربائي) وموقعه ومحطته المخصصة، مع تمييز دقيق بين الاسلاك (حبال كهربائية) المتشابهة.
+
+فريق ضبط الجودة:
+المشكلة: حمل أكوام من الاوراق الكبيرة، صعوبة قراءتها، كثرتها وتبعثرها والخلط بينها.
+الحل: كل البيانات في شاشة واحدة، واضحة، منظمة، قابلة للمراجعة الفورية دون ورقة واحدة.
+
+المهندسون: يرفعون صورة الجدول الورقي ويستخرج النظام البيانات تلقائياً بدقة عالية.
+قابل للتوسع بإضافة أي فئة وظيفية أخرى حسب هيكل المؤسسة.
 
 المزايا التقنية: واجهة ثنائية اللغة (عربي - إنجليزي) - استيراد مباشر من Excel - نظام صلاحيات مرن - وضع ليلي ونهاري - دعم كامل للبيئات الصناعية
 
@@ -129,12 +141,22 @@ Test credentials:
 [English]
 An integrated digital solution that converts paper-based wiring harness tables (schéma) into structured, instantly usable data within the production environment, eliminating manual data entry and human errors entirely.
 
-Target roles and access levels:
-- Operators: enter production line number and employee ID, operational table loads instantly
-- Distributors: monitor distribution plans and wire quantities per production line
-- Quality Control: review data and verify compliance with specifications
-- Engineers: upload a paper table image (schéma), the system extracts data automatically with high accuracy
-- Scalable to any additional role based on the organization's structure
+Target roles and the problems the system solves:
+
+Operators:
+Problem: Difficulty finding the right paper (e.g. DAD or DAG) among scattered sheets, hard to read wire (electrical cable) data due to tiny cells and unclear print — sometimes the paper cannot be found at all.
+Solution: Operator enters their line number and employee ID, the operational table appears instantly on screen — no searching, no paper, no misreading.
+
+Distributors:
+Problem: Hard to identify where each wire (electrical cable) goes and which workstation needs it. Some wires (electrical cables) look identical in color but differ slightly in length, causing mix-ups and wasted time.
+Solution: Clear digital view of every wire (electrical cable), its location, and its assigned workstation — with precise differentiation between similar-looking wires.
+
+Quality Control:
+Problem: Carrying large stacks of papers, difficult to read, too many scattered sheets causing confusion and mix-ups.
+Solution: All data on one clear, organized screen — instant review with zero paper.
+
+Engineers: Upload a paper table image (schéma), the system extracts data automatically with high accuracy.
+Scalable to any additional role based on the organization's structure.
 
 Technical advantages: Bilingual UI (Arabic - English) | Direct Excel import | Flexible role-based access control | Dark/Light mode | Industrial environment support
 
