@@ -102,6 +102,7 @@ function isAdminCommand(text: string): boolean {
     "جهات الاتصال", "contacts", "الأرقام", "الارقام",
     "سجل الرسائل", "messages", "الرسائل",
     "إحصائيات", "stats", "احصائيات",
+    "حالة", "الحالة", "status",
   ];
   if (exactCommands.includes(lower)) return true;
 
@@ -133,13 +134,15 @@ async function handleAdminCommand(text: string, phone: string): Promise<string> 
   if (lower === "مساعدة" || lower === "help" || lower === "أوامر") {
     return `📋 *أوامر المشرف:*
 
+🖥️ *حالة* — تقرير كامل عن النظام والمفاتيح والرسائل
+📊 *إحصائيات* — أرقام سريعة عن النشاط
+
 🔛 *تشغيل* — تشغيل البوت (إيقاف الصيانة)
 ⛔ *وقف* — وضع الصيانة (يرد على الكل برسالة صيانة)
 ✏️ *رسالة صيانة [نص]* — تغيير رسالة الصيانة
 
 🧑‍🤝‍🧑 *جهات الاتصال* — قائمة جميع الأرقام
 📨 *سجل الرسائل* — آخر 20 رسالة في النظام
-📊 *إحصائيات* — أرقام عامة عن النشاط
 🔍 *رسائل [رقم]* — محادثة رقم معين
 🚫 *حظر [رقم]* — حظر رقم
 ✅ *إلغاء حظر [رقم]* — رفع الحظر عن رقم
@@ -232,6 +235,105 @@ async function handleAdminCommand(text: string, phone: string): Promise<string> 
 🤖 الموديل النشط: ${activeModel}
 📡 حالة واتساب: ${state.status === "connected" ? `✅ متصل (+${state.phone})` : "❌ غير متصل"}
 🔧 وضع الصيانة: ${maintenance ? "⛔ مفعّل" : "✅ معطّل"}`;
+  }
+
+  // --- Full system status report ---
+  if (lower === "حالة" || lower === "الحالة" || lower === "status") {
+    const now = new Date();
+    const timeStr = now.toLocaleString("ar-MA", { timeZone: "Africa/Casablanca", hour12: false });
+
+    // Contacts
+    const [totalContacts] = await db.select({ count: sql<number>`count(*)` }).from(contactsTable);
+    const [blocked] = await db.select({ count: sql<number>`count(*)` }).from(contactsTable).where(eq(contactsTable.isBlocked, true));
+    const activeCount = Number(totalContacts.count) - Number(blocked.count);
+
+    // Messages
+    const [totalMessages] = await db.select({ count: sql<number>`count(*)` }).from(messagesTable);
+    const [inbound] = await db.select({ count: sql<number>`count(*)` }).from(messagesTable).where(eq(messagesTable.direction, "inbound"));
+    const [outbound] = await db.select({ count: sql<number>`count(*)` }).from(messagesTable).where(eq(messagesTable.direction, "outbound"));
+
+    // Today messages
+    const todayStart = new Date(now); todayStart.setHours(0,0,0,0);
+    const [todayMsgs] = await db.select({ count: sql<number>`count(*)` }).from(messagesTable)
+      .where(sql`${messagesTable.timestamp} >= ${todayStart}`);
+
+    // Last message
+    const lastMsgRows = await db.select({ timestamp: messagesTable.timestamp, phone: contactsTable.phone })
+      .from(messagesTable)
+      .leftJoin(contactsTable, eq(messagesTable.contactId, contactsTable.id))
+      .orderBy(desc(messagesTable.timestamp))
+      .limit(1);
+    const lastMsgTime = lastMsgRows[0]
+      ? new Date(lastMsgRows[0].timestamp).toLocaleString("ar-MA", { timeZone: "Africa/Casablanca", hour12: false })
+      : "لا توجد رسائل";
+    const lastMsgPhone = lastMsgRows[0]?.phone ? `+${lastMsgRows[0].phone}` : "—";
+
+    // AI settings
+    const aiModel = (await getSetting("aiModel")) ?? "gemini";
+    const geminiApiKey = await getSetting("geminiApiKey");
+    const groqApiKey = await getSetting("groqApiKey");
+    const geminiModel = (await getSetting("geminiModel")) ?? "لم يُحدد";
+    const groqModel = (await getSetting("groqModel")) ?? "لم يُحدد";
+    const agentPersonality = await getSetting("agentPersonality");
+    const autoReply = (await getSetting("autoReply")) ?? "true";
+
+    // Project
+    const projectName = (await getSetting("projectName")) ?? "Yazaki AI";
+    const ownerName = await getSetting("ownerName");
+    const ownerPhone = await getSetting("ownerPhone");
+    const maintenance = (await getSetting("maintenanceMode")) === "true";
+    const maintenanceMsg = await getSetting("maintenanceMessage");
+    const savedAdminPhone = await getSetting("adminPhone");
+
+    const geminiStatus = geminiApiKey
+      ? `✅ مضبوط — موديل: ${geminiModel}${aiModel === "gemini" ? " ◀ نشط" : ""}`
+      : `❌ مفتاح غير مضبوط`;
+    const groqStatus = groqApiKey
+      ? `✅ مضبوط — موديل: ${groqModel}${aiModel === "groq" ? " ◀ نشط" : ""}`
+      : `❌ مفتاح غير مضبوط`;
+
+    return `🖥️ *تقرير حالة النظام الكامل*
+🕐 ${timeStr}
+
+━━━━━━━━━━━━━━━━━━
+📱 *واتساب*
+━━━━━━━━━━━━━━━━━━
+• الحالة: ${state.status === "connected" ? `✅ متصل` : "❌ غير متصل"}
+• الرقم المتصل: ${state.phone ? `+${state.phone}` : "—"}
+• الأدمن المحفوظ: ${savedAdminPhone ? `+${savedAdminPhone}` : "لم يُضبط"}
+
+━━━━━━━━━━━━━━━━━━
+🤖 *الذكاء الاصطناعي*
+━━━━━━━━━━━━━━━━━━
+• المزود النشط: ${aiModel === "gemini" ? "🔵 Google Gemini" : "🟠 Groq"}
+• Gemini: ${geminiStatus}
+• Groq: ${groqStatus}
+• الرد التلقائي: ${autoReply === "true" ? "✅ مفعّل" : "⛔ معطّل"}
+• شخصية مخصصة: ${agentPersonality ? "✅ موجودة" : "⬜ لا توجد"}
+
+━━━━━━━━━━━━━━━━━━
+👥 *جهات الاتصال*
+━━━━━━━━━━━━━━━━━━
+• الإجمالي: ${totalContacts.count}
+• نشطون: ${activeCount}
+• محظورون: ${blocked.count}
+
+━━━━━━━━━━━━━━━━━━
+💬 *الرسائل*
+━━━━━━━━━━━━━━━━━━
+• الإجمالي: ${totalMessages.count}
+• مستقبلة: ${inbound.count} | مرسلة: ${outbound.count}
+• اليوم: ${todayMsgs.count} رسالة
+• آخر نشاط: ${lastMsgTime}
+• آخر رقم: ${lastMsgPhone}
+
+━━━━━━━━━━━━━━━━━━
+⚙️ *الإعدادات*
+━━━━━━━━━━━━━━━━━━
+• المشروع: ${projectName}
+• صاحب المشروع: ${ownerName ?? "لم يُضبط"}
+• رقم صاحب المشروع: ${ownerPhone ? `+${ownerPhone}` : "لم يُضبط"}
+• وضع الصيانة: ${maintenance ? `⛔ مفعّل\n• رسالة الصيانة: "${(maintenanceMsg ?? "").slice(0, 60)}"` : "✅ معطّل"}`;
   }
 
   // --- Messages for specific contact ---
