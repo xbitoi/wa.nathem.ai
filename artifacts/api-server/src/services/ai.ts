@@ -70,17 +70,37 @@ export async function generateAIReply(
   const projectLink = (await getSetting("projectLink")) ?? "";
   const agentPersonality = (await getSetting("agentPersonality")) ?? "";
 
+  // Build contact info block gracefully — only include fields that are set
+  const contactLines: string[] = [];
+  if (ownerName) contactLines.push(`- الاسم: ${ownerName}`);
+  if (ownerPhone) contactLines.push(`- رقم الواتساب: ${ownerPhone}`);
+  if (ownerEmail) contactLines.push(`- الإيميل: ${ownerEmail}`);
+  if (projectLink) contactLines.push(`- رابط المشروع: ${projectLink}`);
+
+  const contactBlock =
+    contactLines.length > 0
+      ? `**معلومات التواصل مع صاحب المشروع:**\n${contactLines.join("\n")}`
+      : `**معلومات التواصل مع صاحب المشروع:**\nلا تتوفر معلومات تواصل محددة حالياً. إذا أراد أحد التواصل، اعتذر بلطف وأخبره أن بإمكانه طلب التواصل وسيُردّ عليه قريباً.`;
+
+  const identityBlock =
+    ownerName
+      ? `إذا سألك أحد "من صنعك؟" أو "من طوّرك؟" أو "من وراءك؟"، أجب مباشرة بأنك تمثل ${ownerName} وفريقه.`
+      : `إذا سألك أحد "من صنعك؟" أو "من طوّرك؟" أو "من وراءك؟"، أجب بأنك نظام ذكاء اصطناعي يمثل فريق Yazaki AI دون ذكر اسم شخص بعينه حتى الآن.`;
+
+  const closeBlock =
+    ownerName || ownerPhone || ownerEmail
+      ? `**تذكر:** وجّه المدير للتواصل مع ${ownerName || "المسؤول"} عند الحاجة${ownerPhone ? ` على ${ownerPhone}` : ownerEmail ? ` عبر ${ownerEmail}` : ""}.`
+      : `**تذكر:** إذا أراد المدير التواصل، شجّعه على التعبير عن اهتمامه وأخبره أن الفريق سيتابع معه.`;
+
   const systemPrompt = `${PROJECT_INFO}
 
-**معلومات التواصل مع صاحب المشروع:**
-- الاسم: ${ownerName}
-- رقم الواتساب: ${ownerPhone}
-- الإيميل: ${ownerEmail}
-- رابط المشروع: ${projectLink}
+${contactBlock}
+
+${identityBlock}
 
 ${agentPersonality ? `**شخصيتك الإضافية:**\n${agentPersonality}` : ""}
 
-**تذكر:** عند انتهاء النقاش أو إذا أراد المدير خطوات أكثر، وجهه للتواصل مع ${ownerName} على ${ownerPhone || ownerEmail}.`;
+${closeBlock}`;
 
   if (aiModel === "groq") {
     const groqApiKey = await getSetting("groqApiKey");

@@ -179,18 +179,19 @@ export const BroadcastMessageResponse = zod.object({
  * @summary Get all settings
  */
 export const GetSettingsResponse = zod.object({
-  ownerName: zod.string(),
-  ownerEmail: zod.string(),
-  ownerPhone: zod.string(),
-  projectName: zod.string(),
-  projectDescription: zod.string(),
-  projectLink: zod.string(),
+  ownerName: zod.string().optional(),
+  ownerEmail: zod.string().optional(),
+  ownerPhone: zod.string().optional(),
+  adminPhone: zod.string().optional(),
+  projectName: zod.string().optional(),
+  projectDescription: zod.string().optional(),
+  projectLink: zod.string().optional(),
   geminiApiKey: zod.string().optional(),
   geminiModel: zod.string().optional(),
   groqApiKey: zod.string().optional(),
   groqModel: zod.string().optional(),
   aiModel: zod.enum(["gemini", "groq"]),
-  agentPersonality: zod.string(),
+  agentPersonality: zod.string().optional(),
   autoReply: zod.boolean(),
 });
 
@@ -198,34 +199,36 @@ export const GetSettingsResponse = zod.object({
  * @summary Update settings
  */
 export const UpdateSettingsBody = zod.object({
-  ownerName: zod.string(),
-  ownerEmail: zod.string(),
-  ownerPhone: zod.string(),
-  projectName: zod.string(),
-  projectDescription: zod.string(),
-  projectLink: zod.string(),
+  ownerName: zod.string().optional(),
+  ownerEmail: zod.string().optional(),
+  ownerPhone: zod.string().optional(),
+  adminPhone: zod.string().optional(),
+  projectName: zod.string().optional(),
+  projectDescription: zod.string().optional(),
+  projectLink: zod.string().optional(),
   geminiApiKey: zod.string().optional(),
   geminiModel: zod.string().optional(),
   groqApiKey: zod.string().optional(),
   groqModel: zod.string().optional(),
   aiModel: zod.enum(["gemini", "groq"]),
-  agentPersonality: zod.string(),
+  agentPersonality: zod.string().optional(),
   autoReply: zod.boolean(),
 });
 
 export const UpdateSettingsResponse = zod.object({
-  ownerName: zod.string(),
-  ownerEmail: zod.string(),
-  ownerPhone: zod.string(),
-  projectName: zod.string(),
-  projectDescription: zod.string(),
-  projectLink: zod.string(),
+  ownerName: zod.string().optional(),
+  ownerEmail: zod.string().optional(),
+  ownerPhone: zod.string().optional(),
+  adminPhone: zod.string().optional(),
+  projectName: zod.string().optional(),
+  projectDescription: zod.string().optional(),
+  projectLink: zod.string().optional(),
   geminiApiKey: zod.string().optional(),
   geminiModel: zod.string().optional(),
   groqApiKey: zod.string().optional(),
   groqModel: zod.string().optional(),
   aiModel: zod.enum(["gemini", "groq"]),
-  agentPersonality: zod.string(),
+  agentPersonality: zod.string().optional(),
   autoReply: zod.boolean(),
 });
 

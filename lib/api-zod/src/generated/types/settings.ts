@@ -8,17 +8,18 @@
 import type { SettingsAiModel } from "./settingsAiModel";
 
 export interface Settings {
-  ownerName: string;
-  ownerEmail: string;
-  ownerPhone: string;
-  projectName: string;
-  projectDescription: string;
-  projectLink: string;
+  ownerName?: string;
+  ownerEmail?: string;
+  ownerPhone?: string;
+  adminPhone?: string;
+  projectName?: string;
+  projectDescription?: string;
+  projectLink?: string;
   geminiApiKey?: string;
   geminiModel?: string;
   groqApiKey?: string;
   groqModel?: string;
   aiModel: SettingsAiModel;
-  agentPersonality: string;
+  agentPersonality?: string;
   autoReply: boolean;
 }

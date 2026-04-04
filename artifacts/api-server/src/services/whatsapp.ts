@@ -1,6 +1,6 @@
 import { logger } from "../lib/logger";
 import { db, contactsTable, messagesTable, settingsTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, desc } from "drizzle-orm";
 import { generateAIReply } from "./ai";
 import fs from "fs";
 import path from "path";
@@ -24,6 +24,9 @@ const state: WAState = {
 };
 
 const SESSION_DIR = path.join(process.cwd(), ".whatsapp-session");
+
+// In-memory admin sessions (authenticated by password "كيرا")
+const adminSessions = new Set<string>();
 
 async function getSetting(key: string): Promise<string | null> {
   const rows = await db.select().from(settingsTable).where(eq(settingsTable.key, key));
@@ -58,6 +61,156 @@ async function getRecentMessages(contactId: number, limit = 10) {
     .where(eq(messagesTable.contactId, contactId))
     .orderBy(messagesTable.timestamp)
     .limit(limit);
+}
+
+// Send error/system alert to admin only
+export async function sendAdminAlert(message: string) {
+  if (state.status !== "connected" || !state.client) return;
+  const adminPhone = await getSetting("adminPhone");
+  if (!adminPhone) return;
+  try {
+    const jid = `${adminPhone}@s.whatsapp.net`;
+    await state.client.sendMessage(jid, { text: `⚠️ *تنبيه النظام*\n${message}` });
+  } catch (err) {
+    logger.error({ err }, "Failed to send admin alert");
+  }
+}
+
+// Handle admin commands — returns admin reply or null if not an admin command
+async function handleAdminCommand(text: string, phone: string): Promise<string | null> {
+  const t = text.trim();
+  const lower = t.toLowerCase().replace(/\s+/g, " ");
+
+  // Logout from admin mode
+  if (lower === "خروج" || lower === "logout" || lower === "exit") {
+    adminSessions.delete(phone);
+    return "🔓 تم إلغاء وضع المشرف. أنت الآن مستخدم عادي.";
+  }
+
+  // Help menu
+  if (lower === "مساعدة" || lower === "help" || lower === "أوامر") {
+    return `📋 *أوامر المشرف:*
+
+🧑‍🤝‍🧑 *جهات الاتصال* — قائمة بجميع الأرقام
+📨 *سجل الرسائل* — آخر 20 رسالة في النظام
+📊 *إحصائيات* — أرقام عامة عن النشاط
+🔍 *رسائل [رقم]* — محادثة رقم معين
+🚫 *حظر [رقم]* — حظر رقم
+✅ *إلغاء حظر [رقم]* — رفع الحظر عن رقم
+🚪 *خروج* — الخروج من وضع المشرف`;
+  }
+
+  // Contacts list
+  if (lower === "جهات الاتصال" || lower === "contacts" || lower === "الأرقام" || lower === "الارقام") {
+    const contacts = await db
+      .select()
+      .from(contactsTable)
+      .orderBy(desc(contactsTable.lastSeen))
+      .limit(30);
+
+    if (contacts.length === 0) return "📭 لا توجد جهات اتصال حتى الآن.";
+
+    const lines = contacts.map((c, i) => {
+      const blocked = c.isBlocked ? " 🚫" : "";
+      const name = c.name ? ` (${c.name})` : "";
+      return `${i + 1}. +${c.phone}${name} — ${c.messageCount} رسالة${blocked}`;
+    });
+
+    return `📋 *جهات الاتصال (${contacts.length}):*\n\n${lines.join("\n")}`;
+  }
+
+  // Last 20 messages system-wide
+  if (lower === "سجل الرسائل" || lower === "messages" || lower === "الرسائل") {
+    const msgs = await db
+      .select({ content: messagesTable.content, direction: messagesTable.direction, timestamp: messagesTable.timestamp, phone: contactsTable.phone, name: contactsTable.name })
+      .from(messagesTable)
+      .leftJoin(contactsTable, eq(messagesTable.contactId, contactsTable.id))
+      .orderBy(desc(messagesTable.timestamp))
+      .limit(20);
+
+    if (msgs.length === 0) return "📭 لا توجد رسائل حتى الآن.";
+
+    const lines = msgs.reverse().map((m) => {
+      const dir = m.direction === "inbound" ? "⬅️" : "➡️";
+      const who = m.name || `+${m.phone}`;
+      const time = new Date(m.timestamp).toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" });
+      const preview = m.content.slice(0, 60) + (m.content.length > 60 ? "…" : "");
+      return `${dir} *${who}* [${time}]\n   ${preview}`;
+    });
+
+    return `📨 *آخر ${msgs.length} رسائل:*\n\n${lines.join("\n\n")}`;
+  }
+
+  // Statistics
+  if (lower === "إحصائيات" || lower === "stats" || lower === "احصائيات") {
+    const [contacts] = await db.select({ count: sql<number>`count(*)` }).from(contactsTable);
+    const [messages] = await db.select({ count: sql<number>`count(*)` }).from(messagesTable);
+    const [blocked] = await db.select({ count: sql<number>`count(*)` }).from(contactsTable).where(eq(contactsTable.isBlocked, true));
+    const [inbound] = await db.select({ count: sql<number>`count(*)` }).from(messagesTable).where(eq(messagesTable.direction, "inbound"));
+    const [outbound] = await db.select({ count: sql<number>`count(*)` }).from(messagesTable).where(eq(messagesTable.direction, "outbound"));
+
+    const aiModel = (await getSetting("aiModel")) ?? "—";
+    const geminiModel = (await getSetting("geminiModel")) ?? "—";
+    const groqModel = (await getSetting("groqModel")) ?? "—";
+    const activeModel = aiModel === "gemini" ? `Gemini / ${geminiModel}` : `Groq / ${groqModel}`;
+
+    return `📊 *إحصائيات النظام:*
+
+👥 جهات الاتصال: ${contacts.count}
+🚫 محظورون: ${blocked.count}
+📨 إجمالي الرسائل: ${messages.count}
+⬅️ مستقبلة: ${inbound.count}
+➡️ مرسلة: ${outbound.count}
+🤖 الموديل النشط: ${activeModel}
+📡 حالة واتساب: ${state.status === "connected" ? `✅ متصل (+${state.phone})` : "❌ غير متصل"}`;
+  }
+
+  // Messages for specific contact: "رسائل [number]"
+  const msgsMatch = t.match(/^(?:رسائل|messages?)\s+(\+?[\d]+)/i);
+  if (msgsMatch) {
+    const numRaw = msgsMatch[1].replace(/^\+/, "");
+    const contact = await db.select().from(contactsTable).where(eq(contactsTable.phone, numRaw));
+    if (!contact[0]) return `❌ الرقم +${numRaw} غير موجود في قاعدة البيانات.`;
+
+    const msgs = await db
+      .select()
+      .from(messagesTable)
+      .where(eq(messagesTable.contactId, contact[0].id))
+      .orderBy(desc(messagesTable.timestamp))
+      .limit(15);
+
+    if (msgs.length === 0) return `📭 لا توجد رسائل مع +${numRaw}.`;
+
+    const name = contact[0].name ? ` (${contact[0].name})` : "";
+    const lines = msgs.reverse().map((m) => {
+      const dir = m.direction === "inbound" ? "⬅️" : "➡️";
+      const time = new Date(m.timestamp).toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" });
+      return `${dir} [${time}] ${m.content.slice(0, 80)}`;
+    });
+
+    return `📋 *رسائل +${numRaw}${name}:*\n\n${lines.join("\n")}`;
+  }
+
+  // Block contact: "حظر [number]"
+  const blockMatch = t.match(/^حظر\s+(\+?[\d]+)/);
+  if (blockMatch) {
+    const numRaw = blockMatch[1].replace(/^\+/, "");
+    const contact = await db.select().from(contactsTable).where(eq(contactsTable.phone, numRaw));
+    if (!contact[0]) return `❌ الرقم +${numRaw} غير موجود.`;
+    await db.update(contactsTable).set({ isBlocked: true }).where(eq(contactsTable.phone, numRaw));
+    return `🚫 تم حظر +${numRaw} بنجاح.`;
+  }
+
+  // Unblock contact: "إلغاء حظر [number]"
+  const unblockMatch = t.match(/^(?:إلغاء حظر|الغاء حظر)\s+(\+?[\d]+)/);
+  if (unblockMatch) {
+    const numRaw = unblockMatch[1].replace(/^\+/, "");
+    await db.update(contactsTable).set({ isBlocked: false }).where(eq(contactsTable.phone, numRaw));
+    return `✅ تم إلغاء حظر +${numRaw} بنجاح.`;
+  }
+
+  // Unknown command — remind admin of help
+  return `❓ أمر غير معروف. أرسل *مساعدة* لعرض قائمة الأوامر المتاحة.`;
 }
 
 export async function connectWhatsApp() {
@@ -144,8 +297,47 @@ export async function connectWhatsApp() {
         if (!text) continue;
 
         const autoReply = (await getSetting("autoReply")) ?? "true";
+        const adminPhone = (await getSetting("adminPhone")) ?? "";
         const contact = await upsertContact(phone, pushName);
 
+        // --- Admin password check ---
+        const normalizedText = text.trim().toLowerCase().replace(/\s+/g, " ");
+        const isKiraPassword =
+          normalizedText === "أنا كيرا" ||
+          normalizedText === "انا كيرا" ||
+          normalizedText === "كيرا" ||
+          normalizedText === "kira" ||
+          normalizedText === "ana kira";
+
+        if (isKiraPassword) {
+          adminSessions.add(phone);
+          await saveMessage(contact.id, text, "inbound");
+          const greeting = `🔐 *وضع المشرف مفعّل*
+
+أهلاً بك يا مشرف! يمكنك الآن استخدام الأوامر التالية:
+
+📋 *مساعدة* — قائمة جميع الأوامر
+🧑‍🤝‍🧑 *جهات الاتصال* — جميع الأرقام
+📨 *سجل الرسائل* — آخر الرسائل
+📊 *إحصائيات* — نشاط النظام
+🔍 *رسائل [رقم]* — محادثة رقم محدد
+🚫 *حظر [رقم]* / ✅ *إلغاء حظر [رقم]*
+🚪 *خروج* — إلغاء وضع المشرف`;
+          await sock.sendMessage(jid, { text: greeting });
+          await saveMessage(contact.id, greeting, "outbound", "system");
+          continue;
+        }
+
+        // --- Admin commands ---
+        if (adminSessions.has(phone)) {
+          await saveMessage(contact.id, text, "inbound");
+          const adminReply = await handleAdminCommand(text, phone);
+          await sock.sendMessage(jid, { text: adminReply! });
+          await saveMessage(contact.id, adminReply!, "outbound", "system/admin");
+          continue;
+        }
+
+        // --- Regular user ---
         if (contact.isBlocked) continue;
 
         await saveMessage(contact.id, text, "inbound");
@@ -158,9 +350,17 @@ export async function connectWhatsApp() {
             content: m.content,
           }));
 
-          const { reply, model } = await generateAIReply(text, history);
-          await sock.sendMessage(jid, { text: reply });
-          await saveMessage(contact.id, reply, "outbound", model);
+          try {
+            const { reply, model } = await generateAIReply(text, history);
+            await sock.sendMessage(jid, { text: reply });
+            await saveMessage(contact.id, reply, "outbound", model);
+          } catch (err: any) {
+            logger.error({ err }, "AI reply failed");
+            // Only notify admin, never the user
+            if (adminPhone) {
+              await sendAdminAlert(`فشل الرد على +${phone}: ${err?.message ?? "خطأ غير معروف"}`);
+            }
+          }
 
           await db
             .update(contactsTable)

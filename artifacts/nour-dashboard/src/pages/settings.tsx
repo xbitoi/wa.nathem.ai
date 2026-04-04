@@ -16,18 +16,19 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 
 const settingsSchema = z.object({
-  ownerName: z.string().min(1, "Required"),
-  ownerEmail: z.string().email("Invalid email"),
-  ownerPhone: z.string().min(1, "Required"),
-  projectName: z.string().min(1, "Required"),
-  projectDescription: z.string().min(1, "Required"),
-  projectLink: z.string().url("Must be a valid URL"),
+  ownerName: z.string().optional(),
+  ownerEmail: z.union([z.string().email("Invalid email"), z.literal("")]).optional(),
+  ownerPhone: z.string().optional(),
+  adminPhone: z.string().optional(),
+  projectName: z.string().optional(),
+  projectDescription: z.string().optional(),
+  projectLink: z.union([z.string().url("Must be a valid URL"), z.literal("")]).optional(),
   geminiApiKey: z.string().optional(),
   geminiModel: z.string().optional(),
   groqApiKey: z.string().optional(),
   groqModel: z.string().optional(),
   aiModel: z.enum(["gemini", "groq"]),
-  agentPersonality: z.string().min(10, "Provide a more detailed personality"),
+  agentPersonality: z.string().optional(),
   autoReply: z.boolean(),
 });
 
@@ -156,7 +157,7 @@ export default function Settings() {
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
-      ownerName: "", ownerEmail: "", ownerPhone: "",
+      ownerName: "", ownerEmail: "", ownerPhone: "", adminPhone: "",
       projectName: "", projectDescription: "", projectLink: "",
       geminiApiKey: "", geminiModel: "",
       groqApiKey: "", groqModel: "",
@@ -168,10 +169,18 @@ export default function Settings() {
     if (settings) {
       form.reset({
         ...settings,
+        ownerName: settings.ownerName || "",
+        ownerEmail: settings.ownerEmail || "",
+        ownerPhone: settings.ownerPhone || "",
+        adminPhone: (settings as any).adminPhone || "",
+        projectName: settings.projectName || "",
+        projectDescription: settings.projectDescription || "",
+        projectLink: settings.projectLink || "",
         geminiApiKey: settings.geminiApiKey || "",
         geminiModel: (settings as any).geminiModel || "",
         groqApiKey: settings.groqApiKey || "",
         groqModel: (settings as any).groqModel || "",
+        agentPersonality: settings.agentPersonality || "",
       });
     }
   }, [settings, form]);
@@ -211,17 +220,42 @@ export default function Settings() {
           <Card className="bg-card/50 backdrop-blur border-border/50">
             <CardHeader>
               <CardTitle>Owner Information</CardTitle>
-              <CardDescription>Contact details for the project owner.</CardDescription>
+              <CardDescription>Contact details shared with managers. All fields are optional — only filled fields are shown to the AI.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-6 md:grid-cols-2">
               <FormField control={form.control} name="ownerName" render={({ field }) => (
-                <FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>
+                <FormItem>
+                  <FormLabel>Name <span className="text-muted-foreground text-xs">(optional)</span></FormLabel>
+                  <FormControl><Input placeholder="e.g. Ahmed Benali" {...field} /></FormControl>
+                  <FormMessage/>
+                </FormItem>
               )} />
               <FormField control={form.control} name="ownerEmail" render={({ field }) => (
-                <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage/></FormItem>
+                <FormItem>
+                  <FormLabel>Email <span className="text-muted-foreground text-xs">(optional)</span></FormLabel>
+                  <FormControl><Input type="email" placeholder="you@example.com" {...field} /></FormControl>
+                  <FormMessage/>
+                </FormItem>
               )} />
               <FormField control={form.control} name="ownerPhone" render={({ field }) => (
-                <FormItem><FormLabel>Phone</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>
+                <FormItem>
+                  <FormLabel>WhatsApp Phone <span className="text-muted-foreground text-xs">(optional)</span></FormLabel>
+                  <FormControl><Input placeholder="e.g. 212612345678" {...field} /></FormControl>
+                  <FormMessage/>
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="adminPhone" render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center gap-2">
+                    <FormLabel>Admin Phone</FormLabel>
+                    <Badge variant="outline" className="text-xs text-amber-400 border-amber-400/30">كيرا</Badge>
+                  </div>
+                  <FormControl><Input placeholder="e.g. 212612345678" {...field} /></FormControl>
+                  <FormDescription className="text-xs">
+                    This number receives system alerts and can use admin mode by sending "أنا كيرا"
+                  </FormDescription>
+                  <FormMessage/>
+                </FormItem>
               )} />
             </CardContent>
           </Card>
@@ -230,19 +264,31 @@ export default function Settings() {
           <Card className="bg-card/50 backdrop-blur border-border/50">
             <CardHeader>
               <CardTitle>Project Details</CardTitle>
-              <CardDescription>Context provided to the AI about the project.</CardDescription>
+              <CardDescription>Extra context provided to the AI. All fields are optional.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-6">
               <div className="grid gap-6 md:grid-cols-2">
                 <FormField control={form.control} name="projectName" render={({ field }) => (
-                  <FormItem><FormLabel>Project Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>
+                  <FormItem>
+                    <FormLabel>Project Name <span className="text-muted-foreground text-xs">(optional)</span></FormLabel>
+                    <FormControl><Input placeholder="Yazaki AI" {...field} /></FormControl>
+                    <FormMessage/>
+                  </FormItem>
                 )} />
                 <FormField control={form.control} name="projectLink" render={({ field }) => (
-                  <FormItem><FormLabel>Project Link</FormLabel><FormControl><Input type="url" {...field} /></FormControl><FormMessage/></FormItem>
+                  <FormItem>
+                    <FormLabel>Project Link <span className="text-muted-foreground text-xs">(optional)</span></FormLabel>
+                    <FormControl><Input type="url" placeholder="https://..." {...field} /></FormControl>
+                    <FormMessage/>
+                  </FormItem>
                 )} />
               </div>
               <FormField control={form.control} name="projectDescription" render={({ field }) => (
-                <FormItem><FormLabel>Description</FormLabel><FormControl><Textarea rows={3} {...field} /></FormControl><FormMessage/></FormItem>
+                <FormItem>
+                  <FormLabel>Description <span className="text-muted-foreground text-xs">(optional)</span></FormLabel>
+                  <FormControl><Textarea rows={3} {...field} /></FormControl>
+                  <FormMessage/>
+                </FormItem>
               )} />
             </CardContent>
           </Card>

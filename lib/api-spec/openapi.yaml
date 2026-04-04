@@ -510,6 +510,8 @@ components:
           type: string
         ownerPhone:
           type: string
+        adminPhone:
+          type: string
         projectName:
           type: string
         projectDescription:
@@ -531,7 +533,7 @@ components:
           type: string
         autoReply:
           type: boolean
-      required: [ownerName, ownerEmail, ownerPhone, projectName, projectDescription, projectLink, aiModel, agentPersonality, autoReply]
+      required: [aiModel, autoReply]
 
     Stats:
       type: object
