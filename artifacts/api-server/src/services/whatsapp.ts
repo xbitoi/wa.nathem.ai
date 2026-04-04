@@ -187,15 +187,25 @@ export async function sendAdminAlert(message: string) {
 
 // Build a human-readable label for a contact in admin notifications
 // Real phone numbers get a wa.me link; WhatsApp LIDs are labeled clearly
-function buildContactLabel(name: string, phone: string, pushName: string | undefined, isLid: boolean): string {
+// Returns { label, replyCmd } — replyCmd is the second message the admin can copy-paste
+function buildContactLabel(
+  name: string,
+  phone: string,
+  pushName: string | undefined,
+  isLid: boolean,
+): { label: string; replyCmd: string } {
   const displayName = name || pushName || "زائر";
   if (isLid) {
-    // LID — no real phone number available
-    return `${displayName}\n📲 جهاز واتساب مرتبط (لا يوجد رقم هاتف مباشر)\n💡 للتواصل: رد عليه عبر نور بالأمر: ردّ ${phone}`;
+    return {
+      label: `${displayName}\n📲 جهاز واتساب مرتبط (لا يوجد رقم هاتف مباشر)`,
+      replyCmd: `ردّ ${phone}`,
+    };
   }
-  // Real phone number — show formatted + clickable wa.me link
   const intlPhone = phone.startsWith("0") && phone.length === 10 ? `212${phone.slice(1)}` : phone;
-  return `${displayName}\n📱 الرقم: +${intlPhone}\n🔗 واتساب: https://wa.me/${intlPhone}`;
+  return {
+    label: `${displayName}\n📱 الرقم: +${intlPhone}\n🔗 واتساب: https://wa.me/${intlPhone}`,
+    replyCmd: `ردّ ${intlPhone}`,
+  };
 }
 
 // Check if phone is recognized admin (DB or in-memory session)
@@ -801,7 +811,7 @@ export async function connectWhatsApp() {
 
             if (fwdState.mode === "contact") {
               // ── Contact mode: notify admin right away (no message needed) ──
-              const senderLabel = buildContactLabel(userName, contact.phone, pushName, isLidJid);
+              const { label: senderLabel, replyCmd } = buildContactLabel(userName, contact.phone, pushName, isLidJid);
               const adminMsg =
                 `📞 *طلب تواصل عبر نور*\n\n` +
                 `👤 ${senderLabel}\n\n` +
@@ -809,6 +819,7 @@ export async function connectWhatsApp() {
 
               logger.info({ from: contact.phone, name: userName }, "Attempting contact notification to admin");
               const sent = await sendToAdminJid(adminMsg);
+              if (sent) await sendToAdminJid(replyCmd);
 
               pendingForwards.delete(phone);
               const confirmMsg = sent
@@ -830,7 +841,7 @@ export async function connectWhatsApp() {
           if (fwdState.step === "ask_msg") {
             // User provided the message — send to admin with name
             const msgContent = text.trim();
-            const senderLabel = buildContactLabel(fwdState.name ?? "", contact.phone, pushName, isLidJid);
+            const { label: senderLabel, replyCmd } = buildContactLabel(fwdState.name ?? "", contact.phone, pushName, isLidJid);
             const adminMsg =
               `📩 *رسالة من زائر عبر نور*\n\n` +
               `👤 ${senderLabel}\n\n` +
@@ -838,6 +849,7 @@ export async function connectWhatsApp() {
 
             logger.info({ from: contact.phone, name: fwdState.name }, "Attempting to forward visitor message to admin");
             const sent = await sendToAdminJid(adminMsg);
+            if (sent) await sendToAdminJid(replyCmd);
 
             pendingForwards.delete(phone);
             const confirmMsg = sent
