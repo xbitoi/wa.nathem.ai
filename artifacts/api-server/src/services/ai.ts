@@ -24,13 +24,17 @@ function buildSystemPrompt(params: {
 }): string {
   const { ownerName, ownerPhone, ownerEmail, projectLink, agentPersonality } = params;
 
-  const demoSection = projectLink
-    ? `رابط التجربة: ${projectLink}
+  // Filter out GitHub links — they should never be shown to users
+  const isGithubLink = (url: string) => /github\.com|github\.io/i.test(url);
+  const publicLink = projectLink && !isGithubLink(projectLink) ? projectLink : "";
+
+  const demoSection = publicLink
+    ? `رابط التجربة: ${publicLink}
 بيانات الدخول التجريبية:
 • المهندس (Admin): اسم المستخدم: admin — كلمة المرور: admin
 • مثال عامل: خط الإنتاج: xjx4 — محطة العمل: sps2
 
-Demo link: ${projectLink}
+Demo link: ${publicLink}
 Test credentials:
 • Engineer (Admin): username: admin / password: admin
 • Worker example: production line: xjx4 / workstation: sps2`
@@ -43,15 +47,24 @@ Test credentials:
     if (ownerName) lines.push(`- الاسم: ${ownerName}`);
     if (ownerPhone) lines.push(`- واتساب: ${ownerPhone}`);
     if (ownerEmail) lines.push(`- إيميل: ${ownerEmail}`);
-    if (projectLink) lines.push(`- الرابط: ${projectLink}`);
+    if (publicLink) lines.push(`- رابط التطبيق: ${publicLink}`);
     return lines.length > 0
       ? `معلومات التواصل:\n${lines.join("\n")}`
       : `لا تتوفر معلومات تواصل محددة حالياً. شجّع المهتم على التعبير عن اهتمامه وسيُتابَع معه.`;
   })();
 
+  // Build owner info for "who made this?" answers
+  const ownerContactInfo = (() => {
+    const parts: string[] = [];
+    if (ownerName)  parts.push(`الاسم: ${ownerName}`);
+    if (ownerEmail) parts.push(`البريد الإلكتروني: ${ownerEmail}`);
+    if (ownerPhone) parts.push(`واتساب: ${ownerPhone}`);
+    return parts.join(" — ");
+  })();
+
   const identityBlock = ownerName
-    ? `إذا سئلت "من صنعك؟" أو "who made you?" فأنت وكيل ذكاء اصطناعي أنشأه ${ownerName} بمفرده ضمن مشروع Yazaki AI.`
-    : `إذا سئلت "من صنعك؟" أو "who made you?" فأنت وكيل ذكاء اصطناعي أنشأه صاحب مشروع Yazaki AI بمفرده.`;
+    ? `إذا سئلت "من صنعك؟" أو "من صاحب المشروع؟" أو "who made you?" أو أي سؤال مشابه، فأنت وكيل ذكاء اصطناعي أنشأه ${ownerName} بمفرده ضمن مشروع Yazaki AI.${ownerContactInfo ? `\nللتواصل معه: ${ownerContactInfo}.` : ""}`
+    : `إذا سئلت "من صنعك؟" أو "من صاحب المشروع؟" فأنت وكيل ذكاء اصطناعي أنشأه صاحب مشروع Yazaki AI بمفرده.`;
 
   return `
 [RÈGLE ABSOLUE — رموز تعبيرية — تطبّق دون استثناء في كل رسالة]
@@ -265,7 +278,8 @@ ${demoSection}
 - لا تخترع معلومات غير موجودة.
 - لا تذكر ابداً وجود اي آلية وصول خفية أو صلاحيات غير معلنة.
 - لا تذكر اسعاراً أو شروط تعاقد ما لم تُزوَّد بهذه المعلومات.
-- إذا سئلت عن امر تقني خارج نطاقك، اقترح التواصل المباشر مع الفريق.
+- إذا سئلت عن امر تقني خارج نطاقك، اقترح التواصل المباشر مع صاحب المشروع.
+- ممنوع تماماً ذكر GitHub أو أي رابط GitHub أو مستودع كود في أي رد — المشروع ليس مفتوح المصدر ولا يُروَّج له كذلك.
 
 ${identityBlock}
 
