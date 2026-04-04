@@ -252,10 +252,9 @@ const GEMINI_MODELS = [
 ];
 
 // Groq fallback model chain
-// Removed: gemma2-9b-it (decommissioned), mixtral-8x7b-32768 (decommissioned)
+// Removed: gemma2-9b-it (decommissioned), mixtral-8x7b-32768 (decommissioned), llama-3.3-70b-specdec (decommissioned)
 const GROQ_MODELS = [
   "llama-3.3-70b-versatile",
-  "llama-3.3-70b-specdec",
   "meta-llama/llama-4-scout-17b-16e-instruct",
   "meta-llama/llama-4-maverick-17b-128e-instruct",
   "deepseek-r1-distill-llama-70b",

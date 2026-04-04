@@ -239,6 +239,7 @@ function isAdminCommand(text: string): boolean {
   if (/^حظر\s+\+?[\d]+/.test(t)) return true;
   if (/^(?:إلغاء حظر|الغاء حظر)\s+\+?[\d]+/.test(t)) return true;
   if (/^(?:تعيين شخصية|شخصية نور|تغيير شخصية|برومبت)\s+.+/is.test(t)) return true;
+  if (/^رد[ّ]?\s+\S+\s+[\s\S]+/i.test(t)) return true;
 
   return false;
 }
@@ -278,6 +279,10 @@ async function handleAdminCommand(text: string, phone: string): Promise<string> 
 🔍 *رسائل [رقم]* — محادثة رقم معين
 🚫 *حظر [رقم]* — حظر رقم
 ✅ *إلغاء حظر [رقم]* — رفع الحظر عن رقم
+
+💬 *ردّ [رقم أو معرف] [رسالة]* — أرسل رسالة مباشرة لأي شخص عبر نور
+   مثال: ردّ 127728753836083 مرحبا، سأتواصل معك قريباً
+
 🚪 *خروج* — إغلاق الجلسة الحالية`;
   }
 
@@ -534,6 +539,44 @@ async function handleAdminCommand(text: string, phone: string): Promise<string> 
   if (["حذف الشخصية", "مسح الشخصية", "إزالة الشخصية"].includes(lower)) {
     await upsertSetting("agentPersonality", "");
     return `🗑️ *تم حذف الشخصية المخصصة*\n\nسترد نور الآن بشخصيتها الافتراضية.`;
+  }
+
+  // --- Reply to a specific contact (by phone or LID) ---
+  const replyMatch = t.match(/^رد[ّ]?\s+(\S+)\s+([\s\S]+)/i);
+  if (replyMatch) {
+    const targetRaw = replyMatch[1].replace(/^\+/, "").trim();
+    const msgToSend = replyMatch[2].trim();
+    if (!msgToSend) return `❌ الرسالة فارغة — أرسل: *ردّ [رقم/معرف] [نص الرسالة]*`;
+
+    if (!state.client || state.status !== "connected") {
+      return `❌ واتساب غير متصل حالياً.`;
+    }
+
+    // Try @s.whatsapp.net first, then @lid
+    let sent = false;
+    for (const suffix of ["@s.whatsapp.net", "@lid"]) {
+      try {
+        await state.client.sendMessage(`${targetRaw}${suffix}`, { text: msgToSend });
+        sent = true;
+        logger.info({ targetRaw, suffix }, "Admin reply sent to contact");
+
+        // Save to DB if contact exists
+        const contacts = await db.select().from(contactsTable).where(eq(contactsTable.phone, targetRaw));
+        if (contacts[0]) {
+          await db.insert(messagesTable).values({
+            contactId: contacts[0].id,
+            content: msgToSend,
+            direction: "outbound",
+            model: "admin/manual",
+          });
+        }
+        break;
+      } catch { /* try next suffix */ }
+    }
+
+    return sent
+      ? `✅ تم إرسال رسالتك إلى *${targetRaw}* بنجاح.`
+      : `❌ فشل الإرسال — تأكد من صحة المعرف وحاول مجدداً.`;
   }
 
   return `❓ أمر غير معروف. أرسل *مساعدة* لعرض قائمة الأوامر المتاحة.`;
