@@ -644,11 +644,16 @@ export async function connectWhatsApp() {
           await saveMessage(contact.id, text, "inbound");
 
           try {
+            // ── Show typing indicator while AI is generating ──
+            await sock.sendPresenceUpdate("composing", jid);
             const { reply, model } = await generateAIReply(text, history);
+            await sock.sendPresenceUpdate("paused", jid);
             await sock.sendMessage(jid, { text: reply });
             await saveMessage(contact.id, reply, "outbound", model);
           } catch (err: any) {
             logger.error({ err }, "AI reply failed");
+            // Stop typing indicator on error
+            try { await sock.sendPresenceUpdate("paused", jid); } catch {}
 
             // Send detailed error to admin only
             const adminRawPhone = (await getSetting("adminPhone"))?.replace(/@.*/, "").replace(/[^0-9]/g, "");
