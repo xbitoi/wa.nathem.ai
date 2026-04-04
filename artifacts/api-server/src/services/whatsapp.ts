@@ -145,16 +145,26 @@ async function catchUpUnanswered(sock: any) {
 }
 
 // Send system alert to admin only
+// Try @s.whatsapp.net first, then fall back to @lid (for linked-device accounts)
+async function sendToAdminJid(text: string): Promise<boolean> {
+  if (state.status !== "connected" || !state.client) return false;
+  const rawPhone = (await getSetting("adminPhone"))?.replace(/@.+$/, "").replace(/[^0-9]/g, "");
+  if (!rawPhone) return false;
+  for (const suffix of ["@s.whatsapp.net", "@lid"]) {
+    try {
+      await state.client.sendMessage(`${rawPhone}${suffix}`, { text });
+      logger.info({ jid: `${rawPhone}${suffix}` }, "Admin message sent ✅");
+      return true;
+    } catch (err: any) {
+      logger.warn({ jid: `${rawPhone}${suffix}`, err: err?.message }, "Admin JID failed, trying next");
+    }
+  }
+  return false;
+}
+
 export async function sendAdminAlert(message: string) {
   if (state.status !== "connected" || !state.client) return;
-  const adminPhone = await getSetting("adminPhone");
-  if (!adminPhone) return;
-  try {
-    const jid = `${adminPhone}@s.whatsapp.net`;
-    await state.client.sendMessage(jid, { text: `⚠️ *تنبيه النظام*\n${message}` });
-  } catch (err) {
-    logger.error({ err }, "Failed to send admin alert");
-  }
+  await sendToAdminJid(`⚠️ *تنبيه النظام*\n${message}`);
 }
 
 // Check if phone is recognized admin (DB or in-memory session)
@@ -722,17 +732,8 @@ export async function connectWhatsApp() {
                 `👤 الاسم: ${senderLabel}\n\n` +
                 `💬 يريد التواصل مع صاحب المشروع.`;
 
-              let sent = false;
-              try {
-                const rawAdminPhone = (await getSetting("adminPhone"))?.replace(/@.+$/, "");
-                if (rawAdminPhone && state.client) {
-                  await state.client.sendMessage(`${rawAdminPhone}@s.whatsapp.net`, { text: adminMsg });
-                  sent = true;
-                  logger.info({ from: contact.phone, name: userName }, "Contact request forwarded to admin");
-                }
-              } catch (fwdErr) {
-                logger.error({ fwdErr }, "Failed to send contact request to admin");
-              }
+              logger.info({ from: contact.phone, name: userName }, "Attempting contact notification to admin");
+              const sent = await sendToAdminJid(adminMsg);
 
               pendingForwards.delete(phone);
               const confirmMsg = sent
@@ -762,17 +763,8 @@ export async function connectWhatsApp() {
               `👤 المرسل: ${senderLabel}\n\n` +
               `💬 الرسالة:\n"${msgContent}"`;
 
-            let sent = false;
-            try {
-              const rawAdminPhone = (await getSetting("adminPhone"))?.replace(/@.+$/, "");
-              if (rawAdminPhone && state.client) {
-                await state.client.sendMessage(`${rawAdminPhone}@s.whatsapp.net`, { text: adminMsg });
-                sent = true;
-                logger.info({ from: contact.phone }, "Visitor message forwarded to admin");
-              }
-            } catch (fwdErr) {
-              logger.error({ fwdErr }, "Failed to forward visitor message to admin");
-            }
+            logger.info({ from: contact.phone, name: fwdState.name }, "Attempting to forward visitor message to admin");
+            const sent = await sendToAdminJid(adminMsg);
 
             pendingForwards.delete(phone);
             const confirmMsg = sent
@@ -782,6 +774,23 @@ export async function connectWhatsApp() {
             await saveMessage(contact.id, confirmMsg, "outbound", "system/forward");
             return;
           }
+        }
+        // ─────────────────────────────────────────────────────────────
+
+        // ── Direct keyword detection — trigger state machine without AI ──
+        const normalText = text.replace(/\s+/g, " ").trim();
+        const isContactRequest = /تواصل.{0,6}(صاحب|مالك|مشروع)|أريد.{0,10}(تواصل|أتواصل)|اريد.{0,10}(تواصل|اتواصل)|contact.{0,10}owner|reach.{0,10}owner/i.test(normalText);
+        const isForwardRequest = /أرسل.{0,6}رسالة|ارسل.{0,6}رسالة|قول.{0,5}له|بلّغه|ابلغه|send.{0,6}message/i.test(normalText);
+
+        if (!pendingForwards.has(phone) && (isContactRequest || isForwardRequest)) {
+          const mode = isForwardRequest ? "forward" : "contact";
+          logger.info({ phone, mode, text }, "Direct keyword triggered contact flow");
+          await saveMessage(contact.id, text, "inbound");
+          pendingForwards.set(phone, { step: "ask_name", mode });
+          const promptMsg = `يسعدني مساعدتك! 🤝\nما اسمك حتى أُعرّفك لصاحب المشروع؟ 👤`;
+          await sock.sendMessage(jid, { text: promptMsg });
+          await saveMessage(contact.id, promptMsg, "outbound", "system/contact");
+          return;
         }
         // ─────────────────────────────────────────────────────────────
 
