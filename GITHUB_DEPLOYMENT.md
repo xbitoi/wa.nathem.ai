@@ -10,24 +10,33 @@
 
 **Live URL**: https://xbitoi.github.io/nour-agent/  
 **Status**: Live — HTTP 200  
-**Build type**: `workflow` (GitHub Actions)  
-**Source folder**: `docs/`  
-**Workflow**: `.github/workflows/pages.yml`
+**Build type**: `legacy` (serves directly from branch/folder)  
+**Source branch**: `main`  
+**Source folder**: `/docs`  
 
-## Verification
+GitHub Pages serves the `docs/` folder on the `main` branch directly — no build step required.
 
-The following was confirmed on 2026-04-04:
+## Verified Configuration (2026-04-04)
+
+```json
+{
+  "build_type": "legacy",
+  "source": {
+    "branch": "main",
+    "path": "/docs"
+  },
+  "status": "built",
+  "html_url": "https://xbitoi.github.io/nour-agent/"
+}
+```
 
 ```
-GitHub Pages HTTP Status: 200
-Pages build_type: workflow
-Pages status: built
-Workflow runs (last 3): completed / success
+Live URL: https://xbitoi.github.io/nour-agent/ → HTTP 200 OK
 ```
 
 ## Setup Script
 
-To reproduce this setup from scratch, run:
+To reproduce this deployment from scratch:
 
 ```bash
 GITHUB_PAT=<your-token> ./scripts/setup-github-pages.sh
@@ -35,22 +44,16 @@ GITHUB_PAT=<your-token> ./scripts/setup-github-pages.sh
 
 Required token scopes: `repo`, `pages`
 
-## Git Remote Configuration
+The script will:
+1. Configure `github` remote with the provided token
+2. Push `main` branch (force)
+3. Clean the token from the remote URL immediately after push
+4. Enable GitHub Pages via POST `/repos/xbitoi/nour-agent/pages` with `source.branch=main, source.path=/docs`
+5. If Pages already exists (409), update via PUT with the same source config
+6. Verify the configuration and live URL
 
-```bash
-# Configure remote (token injected at runtime, not stored)
-git remote add github https://github.com/xbitoi/nour-agent.git
+## Files Served
 
-# Push
-GITHUB_PAT=<token> git remote set-url github "https://xbitoi:<token>@github.com/xbitoi/nour-agent.git"
-git push github main
-git remote set-url github "https://github.com/xbitoi/nour-agent.git"  # clean token
-```
-
-## Workflow Runs
-
-All 3 most recent `Deploy to GitHub Pages` workflow runs completed with `conclusion: success`.
-
-Workflow file: `.github/workflows/pages.yml`
-- Deploys `docs/` folder via `actions/upload-pages-artifact@v3` + `actions/deploy-pages@v4`
-- Runs automatically on every push to `main`
+The `docs/` folder contains:
+- `index.html` — Arabic/English landing page for the project
+- `.nojekyll` — disables Jekyll processing
