@@ -24,7 +24,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className="flex h-16 shrink-0 items-center px-6 border-b border-sidebar-border">
           <div className="text-xl font-bold tracking-tight text-primary flex items-center gap-2">
             <span className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center text-primary border border-primary/20">ن</span>
-            نور
+            ناظم
           </div>
           <div className="ml-auto text-xs uppercase tracking-wider text-muted-foreground font-mono">Ops</div>
         </div>
@@ -76,7 +76,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <header className="md:hidden fixed top-0 left-0 right-0 z-50 h-12 bg-sidebar border-b border-sidebar-border flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
           <span className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center text-primary border border-primary/20 text-sm font-bold flex-shrink-0">ن</span>
-          <span className="text-base font-bold text-primary">نور</span>
+          <span className="text-base font-bold text-primary">ناظم</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="relative flex h-2 w-2 flex-shrink-0">

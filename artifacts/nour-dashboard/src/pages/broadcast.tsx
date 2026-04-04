@@ -58,7 +58,7 @@ export default function Broadcast() {
       <div>
         <h1 className="text-2xl md:text-3xl font-bold tracking-tight">الإرسال الجماعي</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          إرسال رسالة لكل رقم سبق وتواصل مع نور.
+          إرسال رسالة لكل رقم سبق وتواصل مع ناظم.
         </p>
       </div>
 
@@ -91,7 +91,7 @@ export default function Broadcast() {
             <div className="text-center py-6 text-muted-foreground text-sm">
               <Users className="h-8 w-8 mx-auto mb-2 opacity-40" />
               <p>لا يوجد أرقام مسجلة بعد.</p>
-              <p className="text-xs mt-1">ستظهر هنا الأرقام التي تواصلت مع نور عبر واتساب.</p>
+              <p className="text-xs mt-1">ستظهر هنا الأرقام التي تواصلت مع ناظم عبر واتساب.</p>
             </div>
           ) : (
             <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto pr-1">

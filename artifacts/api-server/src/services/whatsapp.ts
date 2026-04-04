@@ -280,7 +280,7 @@ async function handleAdminCommand(text: string, phone: string): Promise<string> 
 ⛔ *وقف* — وضع الصيانة
 ✏️ *رسالة صيانة [نص]* — تغيير رسالة الصيانة
 
-🤖 *شخصية* — عرض الشخصية الحالية لنور
+🤖 *شخصية* — عرض الشخصية الحالية لناظم
 ✍️ *تعيين شخصية [النص]* — تغيير أو إضافة شخصية جديدة
 🗑️ *حذف الشخصية* — حذف الشخصية والعودة للافتراضية
 
@@ -290,7 +290,7 @@ async function handleAdminCommand(text: string, phone: string): Promise<string> 
 🚫 *حظر [رقم]* — حظر رقم
 ✅ *إلغاء حظر [رقم]* — رفع الحظر عن رقم
 
-💬 *ردّ [رقم أو معرف] [رسالة]* — أرسل رسالة مباشرة لأي شخص عبر نور
+💬 *ردّ [رقم أو معرف] [رسالة]* — أرسل رسالة مباشرة لأي شخص عبر ناظم
    مثال: ردّ 127728753836083 مرحبا، سأتواصل معك قريباً
 
 🚪 *خروج* — إغلاق الجلسة الحالية`;
@@ -531,9 +531,9 @@ async function handleAdminCommand(text: string, phone: string): Promise<string> 
   if (["شخصية", "الشخصية", "عرض الشخصية"].includes(lower)) {
     const personality = await getSetting("agentPersonality");
     if (!personality || personality.trim() === "") {
-      return `🤖 *شخصية نور*\n\nلا توجد شخصية مخصصة حالياً.\n\nلتعيين شخصية أرسل:\n*تعيين شخصية [النص]*`;
+      return `🤖 *شخصية ناظم*\n\nلا توجد شخصية مخصصة حالياً.\n\nلتعيين شخصية أرسل:\n*تعيين شخصية [النص]*`;
     }
-    return `🤖 *شخصية نور الحالية:*\n\n${personality}\n\n──────────────\nلتغييرها: *تعيين شخصية [النص الجديد]*\nللحذف: *حذف الشخصية*`;
+    return `🤖 *شخصية ناظم الحالية:*\n\n${personality}\n\n──────────────\nلتغييرها: *تعيين شخصية [النص الجديد]*\nللحذف: *حذف الشخصية*`;
   }
 
   // --- Set / update personality ---
@@ -542,13 +542,13 @@ async function handleAdminCommand(text: string, phone: string): Promise<string> 
     const newPersonality = setPersonalityMatch[1].trim();
     await upsertSetting("agentPersonality", newPersonality);
     const preview = newPersonality.length > 120 ? newPersonality.slice(0, 120) + "..." : newPersonality;
-    return `✅ *تم تحديث شخصية نور*\n\n📝 ${preview}\n\n──────────────\nنور ستستخدم هذه الشخصية في ردودها القادمة فوراً.`;
+    return `✅ *تم تحديث شخصية ناظم*\n\n📝 ${preview}\n\n──────────────\nناظم سيستخدم هذه الشخصية في ردوده القادمة فوراً.`;
   }
 
   // --- Delete personality ---
   if (["حذف الشخصية", "مسح الشخصية", "إزالة الشخصية"].includes(lower)) {
     await upsertSetting("agentPersonality", "");
-    return `🗑️ *تم حذف الشخصية المخصصة*\n\nسترد نور الآن بشخصيتها الافتراضية.`;
+    return `🗑️ *تم حذف الشخصية المخصصة*\n\nسيردّ ناظم الآن بشخصيته الافتراضية.`;
   }
 
   // --- Reply to a specific contact (by phone or LID) ---
@@ -813,7 +813,7 @@ export async function connectWhatsApp() {
               // ── Contact mode: notify admin right away (no message needed) ──
               const { label: senderLabel, replyCmd } = buildContactLabel(userName, contact.phone, pushName, isLidJid);
               const adminMsg =
-                `📞 *طلب تواصل عبر نور*\n\n` +
+                `📞 *طلب تواصل عبر ناظم*\n\n` +
                 `👤 ${senderLabel}\n\n` +
                 `💬 يريد التواصل مع صاحب المشروع.`;
 
@@ -843,7 +843,7 @@ export async function connectWhatsApp() {
             const msgContent = text.trim();
             const { label: senderLabel, replyCmd } = buildContactLabel(fwdState.name ?? "", contact.phone, pushName, isLidJid);
             const adminMsg =
-              `📩 *رسالة من زائر عبر نور*\n\n` +
+              `📩 *رسالة من زائر عبر ناظم*\n\n` +
               `👤 ${senderLabel}\n\n` +
               `💬 الرسالة:\n"${msgContent}"`;
 
