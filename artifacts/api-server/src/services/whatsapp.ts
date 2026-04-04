@@ -89,9 +89,17 @@ async function isAdminPhone(phone: string): Promise<boolean> {
   return phone === savedAdminPhone || adminSessions.has(phone);
 }
 
+// Remove invisible Unicode chars WhatsApp injects into Arabic messages
+// (RTL/LTR marks, zero-width spaces, BOM, directional embeddings, etc.)
+function cleanText(raw: string): string {
+  return raw
+    .replace(/[\u200b\u200c\u200d\u200e\u200f\u202a-\u202e\u2060\ufeff]/g, "")
+    .trim();
+}
+
 // Returns true if the message matches a known admin command keyword/pattern
 function isAdminCommand(text: string): boolean {
-  const t = text.trim();
+  const t = cleanText(text);
   const lower = t.toLowerCase().replace(/\s+/g, " ");
 
   const exactCommands = [
@@ -492,14 +500,18 @@ export async function connectWhatsApp() {
         const jid = msg.key.remoteJid;
         if (!jid || jid.includes("@g.us") || jid.includes("@broadcast")) continue;
 
-        const phone = jid.replace("@s.whatsapp.net", "");
+        const phone = jid.replace("@s.whatsapp.net", "").replace("@lid", "");
         const pushName = msg.pushName ?? undefined;
-        const text =
+        const rawText =
           msg.message.conversation ||
           msg.message.extendedTextMessage?.text ||
           msg.message.imageMessage?.caption ||
           "";
 
+        if (!rawText) continue;
+
+        // Strip invisible Unicode chars WhatsApp injects (RTL marks, ZWSP, etc.)
+        const text = cleanText(rawText);
         if (!text) continue;
 
         const contact = await upsertContact(phone, pushName);
@@ -507,7 +519,7 @@ export async function connectWhatsApp() {
         const isAdmin = phone === adminPhone || adminSessions.has(phone);
 
         // ─── Admin password check ─────────────────────────────────────
-        const normalizedText = text.trim().toLowerCase().replace(/\s+/g, " ");
+        const normalizedText = text.toLowerCase().replace(/\s+/g, " ");
         const isKiraPassword =
           normalizedText === "أنا كيرا" ||
           normalizedText === "انا كيرا" ||
@@ -516,19 +528,24 @@ export async function connectWhatsApp() {
           normalizedText === "ana kira";
 
         if (isKiraPassword) {
-          // Save phone persistently in DB as admin
-          await upsertSetting("adminPhone", phone);
-          adminSessions.add(phone);
-          await saveMessage(contact.id, text, "inbound");
+          // ── Only ONE admin allowed ──
+          // If there's already a saved admin and it's NOT this phone, reject silently
+          if (adminPhone && adminPhone !== phone) {
+            // Just let it fall through to AI as a normal message
+          } else {
+            // First-time admin OR existing admin re-authenticating
+            await upsertSetting("adminPhone", phone);
+            adminSessions.add(phone);
+            await saveMessage(contact.id, text, "inbound");
 
-          const greeting = `🔐 *وضع المشرف مفعّل*
-
-مرحباً! رقمك (+${phone}) محفوظ الآن كمشرف رئيسي في النظام.
-
-📋 أرسل *مساعدة* لعرض جميع الأوامر المتاحة.`;
-          await sock.sendMessage(jid, { text: greeting });
-          await saveMessage(contact.id, greeting, "outbound", "system");
-          continue;
+            const isReturning = isAdmin; // was already admin before this message
+            const greeting = isReturning
+              ? `🔐 *مرحباً مجدداً!*\n\nأنت بالفعل المشرف الرئيسي لهذا النظام.\n\n📋 أرسل *مساعدة* لعرض الأوامر المتاحة.`
+              : `🔐 *وضع المشرف مفعّل*\n\nمرحباً! رقمك (+${phone}) محفوظ الآن كمشرف رئيسي في النظام.\n\n📋 أرسل *مساعدة* لعرض جميع الأوامر المتاحة.`;
+            await sock.sendMessage(jid, { text: greeting });
+            await saveMessage(contact.id, greeting, "outbound", "system");
+            continue;
+          }
         }
 
         // ─── Admin: execute command OR fall through to AI ────────────
