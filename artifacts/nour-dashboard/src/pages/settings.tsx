@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useGetSettings, useUpdateSettings, getGetSettingsQueryKey } from "@workspace/api-client-react";
+import { useGetSettings, useUpdateSettings, getGetSettingsQueryKey, useClearMessages, useClearContacts } from "@workspace/api-client-react";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,9 +11,10 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Eye, EyeOff, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, Save, Eye, EyeOff, RefreshCw, CheckCircle2, AlertCircle, Trash2, MessageSquareOff, UsersRound } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 const settingsSchema = z.object({
   ownerName: z.string().optional(),
@@ -155,6 +156,26 @@ export default function Settings() {
 
   const [showGemini, setShowGemini] = useState(false);
   const [showGroq, setShowGroq] = useState(false);
+
+  const clearMessagesMutation = useClearMessages({
+    mutation: {
+      onSuccess: (data) => {
+        toast({ title: "✅ تم مسح الرسائل", description: data.message });
+        queryClient.invalidateQueries();
+      },
+      onError: () => toast({ title: "خطأ", description: "فشل مسح الرسائل", variant: "destructive" }),
+    },
+  });
+
+  const clearContactsMutation = useClearContacts({
+    mutation: {
+      onSuccess: (data) => {
+        toast({ title: "✅ تم مسح البيانات", description: data.message });
+        queryClient.invalidateQueries();
+      },
+      onError: () => toast({ title: "خطأ", description: "فشل مسح البيانات", variant: "destructive" }),
+    },
+  });
 
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsSchema),
@@ -489,6 +510,93 @@ export default function Settings() {
 
         </form>
       </Form>
+
+      {/* ─── Data Management Card (outside Form) ─────────────────── */}
+      <Card className="border-destructive/40">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-destructive/10">
+              <Trash2 className="h-5 w-5 text-destructive" />
+            </div>
+            <div>
+              <CardTitle className="text-destructive">إدارة البيانات</CardTitle>
+              <CardDescription>حذف الرسائل والجهات. هذه العمليات لا يمكن التراجع عنها.</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+
+          {/* Clear messages */}
+          <div className="rounded-lg border border-border/60 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <MessageSquareOff className="h-4 w-4 text-muted-foreground" />
+              <span className="font-medium text-sm">مسح جميع الرسائل</span>
+            </div>
+            <p className="text-sm text-muted-foreground">يحذف كل سجل الرسائل مع الإبقاء على قائمة جهات الاتصال.</p>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm" className="w-full border-destructive/40 text-destructive hover:bg-destructive/10" disabled={clearMessagesMutation.isPending}>
+                  {clearMessagesMutation.isPending ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Trash2 className="mr-2 h-3 w-3" />}
+                  مسح الرسائل
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>مسح جميع الرسائل؟</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    سيتم حذف كل سجل المحادثات نهائياً. جهات الاتصال ستبقى في النظام لكن بدون رسائل. هذا الإجراء لا يمكن التراجع عنه.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={() => clearMessagesMutation.mutate({})}
+                  >
+                    نعم، احذف الرسائل
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+
+          {/* Clear all data */}
+          <div className="rounded-lg border border-border/60 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <UsersRound className="h-4 w-4 text-muted-foreground" />
+              <span className="font-medium text-sm">مسح كل البيانات</span>
+            </div>
+            <p className="text-sm text-muted-foreground">يحذف جميع جهات الاتصال وكل رسائلها — إعادة ضبط كاملة.</p>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" className="w-full" disabled={clearContactsMutation.isPending}>
+                  {clearContactsMutation.isPending ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Trash2 className="mr-2 h-3 w-3" />}
+                  مسح كل البيانات
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>مسح كل البيانات؟</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    سيتم حذف <strong>جميع جهات الاتصال وجميع الرسائل</strong> نهائياً. النظام سيعود كأنه جديد. هذا الإجراء لا يمكن التراجع عنه إطلاقاً.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={() => clearContactsMutation.mutate()}
+                  >
+                    نعم، احذف كل شيء
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+
+        </CardContent>
+      </Card>
+
     </div>
   );
 }

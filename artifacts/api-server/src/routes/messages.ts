@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, contactsTable, messagesTable } from "@workspace/db";
-import { eq, desc, count } from "drizzle-orm";
+import { eq, desc, count, sql } from "drizzle-orm";
 import { SendMessageBody, BroadcastMessageBody, GetMessagesQueryParams } from "@workspace/api-zod";
 import { sendWhatsAppMessage } from "../services/whatsapp";
 
@@ -76,6 +76,27 @@ router.post("/broadcast", async (req, res) => {
   }
 
   res.json({ success: true, sent, failed });
+});
+
+// DELETE /messages — clear all messages or messages for a specific contact
+router.delete("/", async (req, res) => {
+  const contactId = req.query.contactId ? Number(req.query.contactId) : undefined;
+
+  let deleted: number;
+  if (contactId) {
+    const result = await db.delete(messagesTable).where(eq(messagesTable.contactId, contactId));
+    deleted = Number((result as any).rowCount ?? 0);
+    // Reset message count for the contact
+    await db.update(contactsTable).set({ messageCount: 0 }).where(eq(contactsTable.id, contactId));
+  } else {
+    const [{ value }] = await db.select({ value: count() }).from(messagesTable);
+    deleted = Number(value);
+    await db.delete(messagesTable);
+    // Reset all message counts
+    await db.update(contactsTable).set({ messageCount: 0 });
+  }
+
+  res.json({ success: true, deleted, message: `تم حذف ${deleted} رسالة.` });
 });
 
 export default router;

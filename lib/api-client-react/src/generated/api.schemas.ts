@@ -157,6 +157,12 @@ export interface ActivityPoint {
   outbound: number;
 }
 
+export interface ClearDataResponse {
+  success: boolean;
+  deleted: number;
+  message: string;
+}
+
 export type GetContactsParams = {
   search?: string;
   page?: number;
@@ -177,6 +183,10 @@ export const GetMessagesDirection = {
   inbound: "inbound",
   outbound: "outbound",
 } as const;
+
+export type ClearMessagesParams = {
+  contactId?: number;
+};
 
 export type GetGeminiModelsParams = {
   key: string;

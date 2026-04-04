@@ -177,6 +177,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/MessagesListResponse"
 
+    delete:
+      operationId: clearMessages
+      tags: [messages]
+      summary: Delete all messages (optionally for one contact)
+      parameters:
+        - name: contactId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClearDataResponse"
+
+  /contacts/clear:
+    delete:
+      operationId: clearContacts
+      tags: [contacts]
+      summary: Delete all contacts and their messages
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClearDataResponse"
+
   /messages/send:
     post:
       operationId: sendMessage
@@ -568,3 +598,14 @@ components:
         outbound:
           type: integer
       required: [date, inbound, outbound]
+
+    ClearDataResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        deleted:
+          type: integer
+        message:
+          type: string
+      required: [success, deleted, message]

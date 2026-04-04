@@ -22,6 +22,8 @@ import type {
   BlockContactBody,
   BroadcastMessageBody,
   BroadcastResult,
+  ClearDataResponse,
+  ClearMessagesParams,
   ContactDetail,
   ContactsListResponse,
   GetContactsParams,
@@ -714,6 +716,183 @@ export function useGetMessages<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Delete all messages (optionally for one contact)
+ */
+export const getClearMessagesUrl = (params?: ClearMessagesParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/messages?${stringifiedParams}`
+    : `/api/messages`;
+};
+
+export const clearMessages = async (
+  params?: ClearMessagesParams,
+  options?: RequestInit,
+): Promise<ClearDataResponse> => {
+  return customFetch<ClearDataResponse>(getClearMessagesUrl(params), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getClearMessagesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearMessages>>,
+    TError,
+    { params?: ClearMessagesParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof clearMessages>>,
+  TError,
+  { params?: ClearMessagesParams },
+  TContext
+> => {
+  const mutationKey = ["clearMessages"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof clearMessages>>,
+    { params?: ClearMessagesParams }
+  > = (props) => {
+    const { params } = props ?? {};
+
+    return clearMessages(params, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClearMessagesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearMessages>>
+>;
+
+export type ClearMessagesMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete all messages (optionally for one contact)
+ */
+export const useClearMessages = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearMessages>>,
+    TError,
+    { params?: ClearMessagesParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof clearMessages>>,
+  TError,
+  { params?: ClearMessagesParams },
+  TContext
+> => {
+  return useMutation(getClearMessagesMutationOptions(options));
+};
+
+/**
+ * @summary Delete all contacts and their messages
+ */
+export const getClearContactsUrl = () => {
+  return `/api/contacts/clear`;
+};
+
+export const clearContacts = async (
+  options?: RequestInit,
+): Promise<ClearDataResponse> => {
+  return customFetch<ClearDataResponse>(getClearContactsUrl(), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getClearContactsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearContacts>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof clearContacts>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["clearContacts"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof clearContacts>>,
+    void
+  > = () => {
+    return clearContacts(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClearContactsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearContacts>>
+>;
+
+export type ClearContactsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete all contacts and their messages
+ */
+export const useClearContacts = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearContacts>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof clearContacts>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getClearContactsMutationOptions(options));
+};
 
 /**
  * @summary Send a message to a contact

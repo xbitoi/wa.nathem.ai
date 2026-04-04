@@ -150,6 +150,28 @@ export const GetMessagesResponse = zod.object({
 });
 
 /**
+ * @summary Delete all messages (optionally for one contact)
+ */
+export const ClearMessagesQueryParams = zod.object({
+  contactId: zod.coerce.number().optional(),
+});
+
+export const ClearMessagesResponse = zod.object({
+  success: zod.boolean(),
+  deleted: zod.number(),
+  message: zod.string(),
+});
+
+/**
+ * @summary Delete all contacts and their messages
+ */
+export const ClearContactsResponse = zod.object({
+  success: zod.boolean(),
+  deleted: zod.number(),
+  message: zod.string(),
+});
+
+/**
  * @summary Send a message to a contact
  */
 export const SendMessageBody = zod.object({

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, contactsTable, messagesTable } from "@workspace/db";
-import { eq, ilike, desc, sql, count } from "drizzle-orm";
+import { eq, ilike, desc, sql, count, ne } from "drizzle-orm";
 import { ToggleBlockContactBody, GetContactsQueryParams, GetContactParams, ToggleBlockContactParams } from "@workspace/api-zod";
 
 const router = Router();
@@ -110,6 +110,16 @@ router.post("/:id/block", async (req, res) => {
     .where(eq(contactsTable.id, params.data.id));
 
   res.json({ success: true, message: body.data.blocked ? "Contact blocked" : "Contact unblocked" });
+});
+
+// DELETE /contacts/clear — delete all contacts and their messages
+router.delete("/clear", async (req, res) => {
+  const [{ value }] = await db.select({ value: count() }).from(contactsTable);
+  const deleted = Number(value);
+  // Messages are cascade-deleted with contacts via FK, or delete explicitly
+  await db.delete(messagesTable);
+  await db.delete(contactsTable);
+  res.json({ success: true, deleted, message: `تم حذف ${deleted} جهة اتصال وجميع رسائلها.` });
 });
 
 export default router;

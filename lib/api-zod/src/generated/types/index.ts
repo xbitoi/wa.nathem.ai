@@ -12,6 +12,8 @@ export * from "./aiModelsResponse";
 export * from "./blockContactBody";
 export * from "./broadcastMessageBody";
 export * from "./broadcastResult";
+export * from "./clearDataResponse";
+export * from "./clearMessagesParams";
 export * from "./contact";
 export * from "./contactDetail";
 export * from "./contactsListResponse";
