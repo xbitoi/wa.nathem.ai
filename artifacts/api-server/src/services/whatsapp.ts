@@ -494,9 +494,17 @@ export async function connectWhatsApp() {
     });
 
     sock.ev.on("messages.upsert", async ({ messages, type }: any) => {
-      if (type !== "notify") return;
+      // Accept "notify" (live messages) and "append" (messages received during reconnect)
+      if (type !== "notify" && type !== "append") return;
       for (const msg of messages) {
         if (!msg.message || msg.key.fromMe) continue;
+
+        // For "append" (offline/reconnect messages), only process messages from the last 5 minutes
+        if (type === "append") {
+          const msgTimestamp = (msg.messageTimestamp as number) * 1000;
+          if (Date.now() - msgTimestamp > 5 * 60 * 1000) continue;
+        }
+
         const jid = msg.key.remoteJid;
         if (!jid || jid.includes("@g.us") || jid.includes("@broadcast")) continue;
 
