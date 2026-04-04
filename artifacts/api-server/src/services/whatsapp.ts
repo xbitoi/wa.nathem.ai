@@ -89,6 +89,31 @@ async function isAdminPhone(phone: string): Promise<boolean> {
   return phone === savedAdminPhone || adminSessions.has(phone);
 }
 
+// Returns true if the message matches a known admin command keyword/pattern
+function isAdminCommand(text: string): boolean {
+  const t = text.trim();
+  const lower = t.toLowerCase().replace(/\s+/g, " ");
+
+  const exactCommands = [
+    "خروج", "logout", "exit",
+    "مساعدة", "help", "أوامر",
+    "وقف", "صيانة", "maintenance", "off",
+    "تشغيل", "start", "online", "on",
+    "جهات الاتصال", "contacts", "الأرقام", "الارقام",
+    "سجل الرسائل", "messages", "الرسائل",
+    "إحصائيات", "stats", "احصائيات",
+  ];
+  if (exactCommands.includes(lower)) return true;
+
+  // Pattern commands
+  if (/^رسالة صيانة\s+.+/is.test(t)) return true;
+  if (/^(?:رسائل|messages?)\s+\+?[\d]+/i.test(t)) return true;
+  if (/^حظر\s+\+?[\d]+/.test(t)) return true;
+  if (/^(?:إلغاء حظر|الغاء حظر)\s+\+?[\d]+/.test(t)) return true;
+
+  return false;
+}
+
 // Handle admin commands — always returns a reply string
 async function handleAdminCommand(text: string, phone: string): Promise<string> {
   const t = text.trim();
@@ -368,8 +393,8 @@ export async function connectWhatsApp() {
           continue;
         }
 
-        // ─── Admin commands ───────────────────────────────────────────
-        if (isAdmin) {
+        // ─── Admin: execute command OR fall through to AI ────────────
+        if (isAdmin && isAdminCommand(text)) {
           await saveMessage(contact.id, text, "inbound");
           const adminReply = await handleAdminCommand(text, phone);
           await sock.sendMessage(jid, { text: adminReply });
@@ -382,9 +407,9 @@ export async function connectWhatsApp() {
 
         logger.info({ phone, text: text.slice(0, 50) }, "Inbound message");
 
-        // ─── Maintenance mode ─────────────────────────────────────────
+        // ─── Maintenance mode (admin bypasses it to keep chatting) ────
         const maintenanceMode = (await getSetting("maintenanceMode")) === "true";
-        if (maintenanceMode) {
+        if (maintenanceMode && !isAdmin) {
           await saveMessage(contact.id, text, "inbound");
           const maintenanceMsg =
             (await getSetting("maintenanceMessage")) ??
@@ -394,9 +419,9 @@ export async function connectWhatsApp() {
           continue;
         }
 
-        // ─── Auto-reply via AI ────────────────────────────────────────
+        // ─── Auto-reply via AI (admin + regular users) ────────────────
         const autoReply = (await getSetting("autoReply")) ?? "true";
-        if (autoReply === "true") {
+        if (autoReply === "true" || isAdmin) {
           // Fetch history BEFORE saving the current message to avoid duplication
           const previousMsgs = await getRecentMessages(contact.id, 12);
 
