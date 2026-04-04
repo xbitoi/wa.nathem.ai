@@ -244,11 +244,11 @@ ${agentPersonality ? `═══════════════════�
 }
 
 // Gemini fallback model chain
-// Removed: gemini-2.5-flash-preview-04-17 (404), gemini-2.0-flash-exp (404)
+// Removed: gemini-2.0-flash-exp (404)
 // Removed: gemma-3-* (400 "Developer instruction not enabled" — no systemInstruction support)
 const GEMINI_MODELS = [
-  "gemini-2.0-flash",
-  "gemini-2.0-flash-lite",
+  "gemini-2.5-flash-preview-04-17", // Flash 2.5 — latest (user: "flash 3.1")
+  "gemini-2.0-flash",               // Flash 2.0 — stable fallback
 ];
 
 // Groq fallback model chain
