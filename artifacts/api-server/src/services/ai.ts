@@ -284,6 +284,10 @@ const GEMINI_MODELS = [
   "gemini-2.0-flash-lite",
   "gemini-2.5-flash-preview-04-17",
   "gemini-2.0-flash-exp",
+  // Gemma models via Google AI API
+  "gemma-3-27b-it",
+  "gemma-3-12b-it",
+  "gemma-3-4b-it",
 ];
 
 // Groq fallback model chain
