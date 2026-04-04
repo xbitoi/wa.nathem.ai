@@ -7,6 +7,8 @@
  */
 
 export * from "./activityPoint";
+export * from "./aiModelOption";
+export * from "./aiModelsResponse";
 export * from "./blockContactBody";
 export * from "./broadcastMessageBody";
 export * from "./broadcastResult";
@@ -14,6 +16,8 @@ export * from "./contact";
 export * from "./contactDetail";
 export * from "./contactsListResponse";
 export * from "./getContactsParams";
+export * from "./getGeminiModelsParams";
+export * from "./getGroqModelsParams";
 export * from "./getMessagesDirection";
 export * from "./getMessagesParams";
 export * from "./healthStatus";

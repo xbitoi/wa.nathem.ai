@@ -62,6 +62,8 @@ export async function generateAIReply(
   conversationHistory: Array<{ role: "user" | "assistant"; content: string }>
 ): Promise<{ reply: string; model: string }> {
   const aiModel = (await getSetting("aiModel")) ?? "gemini";
+  const geminiModel = (await getSetting("geminiModel")) || "gemini-2.0-flash";
+  const groqModel = (await getSetting("groqModel")) || "llama-3.3-70b-versatile";
   const ownerName = (await getSetting("ownerName")) ?? "صاحب المشروع";
   const ownerPhone = (await getSetting("ownerPhone")) ?? "";
   const ownerEmail = (await getSetting("ownerEmail")) ?? "";
@@ -94,7 +96,7 @@ ${agentPersonality ? `**شخصيتك الإضافية:**\n${agentPersonality}` :
         { role: "user" as const, content: userMessage },
       ];
       const completion = await groq.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
+        model: groqModel,
         messages,
         max_tokens: 1024,
         temperature: 0.7,
@@ -113,7 +115,7 @@ ${agentPersonality ? `**شخصيتك الإضافية:**\n${agentPersonality}` :
     try {
       const { GoogleGenerativeAI } = await import("@google/generative-ai");
       const genAI = new GoogleGenerativeAI(geminiApiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const model = genAI.getGenerativeModel({ model: geminiModel });
       const history = conversationHistory.map((m) => ({
         role: m.role === "assistant" ? "model" : "user",
         parts: [{ text: m.content }],

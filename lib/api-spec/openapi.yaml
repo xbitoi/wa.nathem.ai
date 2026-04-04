@@ -245,6 +245,48 @@ paths:
               schema:
                 $ref: "#/components/schemas/Settings"
 
+  /settings/models/gemini:
+    get:
+      operationId: getGeminiModels
+      tags: [settings]
+      summary: Fetch available Gemini models for a given API key
+      parameters:
+        - name: key
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of available models
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiModelsResponse"
+        "400":
+          description: Invalid or missing key
+
+  /settings/models/groq:
+    get:
+      operationId: getGroqModels
+      tags: [settings]
+      summary: Fetch available Groq models for a given API key
+      parameters:
+        - name: key
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of available models
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiModelsResponse"
+        "400":
+          description: Invalid or missing key
+
   /stats:
     get:
       operationId: getStats
@@ -439,6 +481,26 @@ components:
           type: boolean
       required: [blocked]
 
+    AiModelOption:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+      required: [id, name, description]
+
+    AiModelsResponse:
+      type: object
+      properties:
+        models:
+          type: array
+          items:
+            $ref: "#/components/schemas/AiModelOption"
+      required: [models]
+
     Settings:
       type: object
       properties:
@@ -456,7 +518,11 @@ components:
           type: string
         geminiApiKey:
           type: string
+        geminiModel:
+          type: string
         groqApiKey:
+          type: string
+        groqModel:
           type: string
         aiModel:
           type: string

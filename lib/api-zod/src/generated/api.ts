@@ -186,7 +186,9 @@ export const GetSettingsResponse = zod.object({
   projectDescription: zod.string(),
   projectLink: zod.string(),
   geminiApiKey: zod.string().optional(),
+  geminiModel: zod.string().optional(),
   groqApiKey: zod.string().optional(),
+  groqModel: zod.string().optional(),
   aiModel: zod.enum(["gemini", "groq"]),
   agentPersonality: zod.string(),
   autoReply: zod.boolean(),
@@ -203,7 +205,9 @@ export const UpdateSettingsBody = zod.object({
   projectDescription: zod.string(),
   projectLink: zod.string(),
   geminiApiKey: zod.string().optional(),
+  geminiModel: zod.string().optional(),
   groqApiKey: zod.string().optional(),
+  groqModel: zod.string().optional(),
   aiModel: zod.enum(["gemini", "groq"]),
   agentPersonality: zod.string(),
   autoReply: zod.boolean(),
@@ -217,10 +221,46 @@ export const UpdateSettingsResponse = zod.object({
   projectDescription: zod.string(),
   projectLink: zod.string(),
   geminiApiKey: zod.string().optional(),
+  geminiModel: zod.string().optional(),
   groqApiKey: zod.string().optional(),
+  groqModel: zod.string().optional(),
   aiModel: zod.enum(["gemini", "groq"]),
   agentPersonality: zod.string(),
   autoReply: zod.boolean(),
+});
+
+/**
+ * @summary Fetch available Gemini models for a given API key
+ */
+export const GetGeminiModelsQueryParams = zod.object({
+  key: zod.coerce.string(),
+});
+
+export const GetGeminiModelsResponse = zod.object({
+  models: zod.array(
+    zod.object({
+      id: zod.string(),
+      name: zod.string(),
+      description: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Fetch available Groq models for a given API key
+ */
+export const GetGroqModelsQueryParams = zod.object({
+  key: zod.coerce.string(),
+});
+
+export const GetGroqModelsResponse = zod.object({
+  models: zod.array(
+    zod.object({
+      id: zod.string(),
+      name: zod.string(),
+      description: zod.string(),
+    }),
+  ),
 });
 
 /**

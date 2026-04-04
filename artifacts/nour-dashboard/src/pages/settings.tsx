@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -11,9 +11,9 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Eye, EyeOff } from "lucide-react";
-import { useState } from "react";
+import { Loader2, Save, Eye, EyeOff, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Badge } from "@/components/ui/badge";
 
 const settingsSchema = z.object({
   ownerName: z.string().min(1, "Required"),
@@ -23,7 +23,9 @@ const settingsSchema = z.object({
   projectDescription: z.string().min(1, "Required"),
   projectLink: z.string().url("Must be a valid URL"),
   geminiApiKey: z.string().optional(),
+  geminiModel: z.string().optional(),
   groqApiKey: z.string().optional(),
+  groqModel: z.string().optional(),
   aiModel: z.enum(["gemini", "groq"]),
   agentPersonality: z.string().min(10, "Provide a more detailed personality"),
   autoReply: z.boolean(),
@@ -31,12 +33,123 @@ const settingsSchema = z.object({
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
 
+interface ModelOption {
+  id: string;
+  name: string;
+  description: string;
+}
+
+type FetchStatus = "idle" | "loading" | "success" | "error";
+
+function ModelSelector({
+  provider,
+  apiKey,
+  value,
+  onChange,
+}: {
+  provider: "gemini" | "groq";
+  apiKey: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [models, setModels] = useState<ModelOption[]>([]);
+  const [status, setStatus] = useState<FetchStatus>("idle");
+  const [error, setError] = useState("");
+  const { toast } = useToast();
+
+  const fetchModels = useCallback(async () => {
+    if (!apiKey.trim()) {
+      toast({ title: "Missing API Key", description: `Enter the ${provider === "gemini" ? "Gemini" : "Groq"} API key first.`, variant: "destructive" });
+      return;
+    }
+    setStatus("loading");
+    setError("");
+    try {
+      const res = await fetch(`/api/settings/models/${provider}?key=${encodeURIComponent(apiKey)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed");
+      setModels(data.models ?? []);
+      setStatus("success");
+      if ((data.models ?? []).length === 0) {
+        setError("No compatible models found for this key.");
+      } else if (!value) {
+        onChange(data.models[0].id);
+      }
+    } catch (e: any) {
+      setStatus("error");
+      setError(e.message ?? "Unknown error");
+    }
+  }, [apiKey, provider, value, onChange, toast]);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={fetchModels}
+          disabled={status === "loading"}
+          className="text-xs gap-1.5"
+        >
+          {status === "loading" ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <RefreshCw className="h-3 w-3" />
+          )}
+          {models.length > 0 ? "Refresh Models" : "Fetch Models"}
+        </Button>
+        {status === "success" && models.length > 0 && (
+          <Badge variant="outline" className="text-green-400 border-green-400/30 text-xs gap-1">
+            <CheckCircle2 className="h-3 w-3" />
+            {models.length} models
+          </Badge>
+        )}
+        {status === "error" && (
+          <Badge variant="outline" className="text-red-400 border-red-400/30 text-xs gap-1">
+            <AlertCircle className="h-3 w-3" />
+            {error}
+          </Badge>
+        )}
+      </div>
+
+      {models.length > 0 && (
+        <Select value={value} onValueChange={onChange}>
+          <SelectTrigger className="font-mono text-sm">
+            <SelectValue placeholder="Select a model..." />
+          </SelectTrigger>
+          <SelectContent>
+            {models.map((m) => (
+              <SelectItem key={m.id} value={m.id}>
+                <div className="flex flex-col">
+                  <span className="font-medium">{m.name}</span>
+                  {m.description && (
+                    <span className="text-xs text-muted-foreground">{m.description}</span>
+                  )}
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
+      {models.length === 0 && status !== "loading" && (
+        <p className="text-xs text-muted-foreground">
+          {status === "idle"
+            ? `Click "Fetch Models" to load available ${provider === "gemini" ? "Gemini" : "Groq"} models`
+            : error || "No models available"}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function Settings() {
   const { data: settings, isLoading } = useGetSettings();
   const updateMutation = useUpdateSettings();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
+
   const [showGemini, setShowGemini] = useState(false);
   const [showGroq, setShowGroq] = useState(false);
 
@@ -45,7 +158,8 @@ export default function Settings() {
     defaultValues: {
       ownerName: "", ownerEmail: "", ownerPhone: "",
       projectName: "", projectDescription: "", projectLink: "",
-      geminiApiKey: "", groqApiKey: "",
+      geminiApiKey: "", geminiModel: "",
+      groqApiKey: "", groqModel: "",
       aiModel: "gemini", agentPersonality: "", autoReply: true
     }
   });
@@ -55,13 +169,15 @@ export default function Settings() {
       form.reset({
         ...settings,
         geminiApiKey: settings.geminiApiKey || "",
+        geminiModel: (settings as any).geminiModel || "",
         groqApiKey: settings.groqApiKey || "",
+        groqModel: (settings as any).groqModel || "",
       });
     }
   }, [settings, form]);
 
   const onSubmit = (data: SettingsFormValues) => {
-    updateMutation.mutate({ data }, {
+    updateMutation.mutate({ data: data as any }, {
       onSuccess: (newSettings) => {
         toast({ title: "Settings Saved", description: "Configuration updated successfully." });
         queryClient.setQueryData(getGetSettingsQueryKey(), newSettings);
@@ -71,6 +187,11 @@ export default function Settings() {
       }
     });
   };
+
+  const geminiApiKey = form.watch("geminiApiKey") ?? "";
+  const groqApiKey = form.watch("groqApiKey") ?? "";
+  const geminiModel = form.watch("geminiModel") ?? "";
+  const groqModel = form.watch("groqModel") ?? "";
 
   if (isLoading) {
     return <div className="flex justify-center p-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
@@ -85,7 +206,7 @@ export default function Settings() {
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          
+
           {/* Owner Info */}
           <Card className="bg-card/50 backdrop-blur border-border/50">
             <CardHeader>
@@ -132,7 +253,7 @@ export default function Settings() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>AI Configuration</CardTitle>
-                  <CardDescription>API keys and agent behavior.</CardDescription>
+                  <CardDescription>API keys, model selection, and agent behavior.</CardDescription>
                 </div>
                 <FormField control={form.control} name="autoReply" render={({ field }) => (
                   <FormItem className="flex items-center gap-2 space-y-0">
@@ -142,28 +263,39 @@ export default function Settings() {
                 )} />
               </div>
             </CardHeader>
-            <CardContent className="grid gap-6">
+            <CardContent className="grid gap-8">
+
+              {/* Active Provider */}
               <FormField control={form.control} name="aiModel" render={({ field }) => (
                 <FormItem className="max-w-xs">
-                  <FormLabel>Active Model</FormLabel>
+                  <FormLabel>Active AI Provider</FormLabel>
                   <Select value={field.value} onValueChange={field.onChange}>
                     <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
                     <SelectContent>
                       <SelectItem value="gemini">Google Gemini</SelectItem>
-                      <SelectItem value="groq">Groq (Llama 3)</SelectItem>
+                      <SelectItem value="groq">Groq</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage/>
                 </FormItem>
               )} />
 
-              <div className="grid gap-6 md:grid-cols-2">
+              {/* Gemini Section */}
+              <div className="rounded-lg border border-border/50 p-5 space-y-4">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-blue-400" />
+                  <h3 className="font-semibold text-sm">Google Gemini</h3>
+                  {form.watch("aiModel") === "gemini" && (
+                    <Badge className="text-xs bg-blue-500/20 text-blue-400 border-blue-400/30">Active</Badge>
+                  )}
+                </div>
+
                 <FormField control={form.control} name="geminiApiKey" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Gemini API Key</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Input type={showGemini ? "text" : "password"} {...field} className="pr-10 font-mono text-sm" />
+                        <Input type={showGemini ? "text" : "password"} {...field} className="pr-10 font-mono text-sm" placeholder="AIza..." />
                         <button type="button" onClick={() => setShowGemini(!showGemini)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                           {showGemini ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
@@ -172,12 +304,42 @@ export default function Settings() {
                     <FormMessage/>
                   </FormItem>
                 )} />
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium leading-none">Gemini Model</label>
+                  <p className="text-sm text-muted-foreground">
+                    Free models only (Flash & Gemma families). Enter your API key then click Fetch Models.
+                  </p>
+                  <ModelSelector
+                    provider="gemini"
+                    apiKey={geminiApiKey}
+                    value={geminiModel}
+                    onChange={(v) => form.setValue("geminiModel", v)}
+                  />
+                  {geminiModel && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Selected: <span className="font-mono text-foreground">{geminiModel}</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Groq Section */}
+              <div className="rounded-lg border border-border/50 p-5 space-y-4">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-orange-400" />
+                  <h3 className="font-semibold text-sm">Groq</h3>
+                  {form.watch("aiModel") === "groq" && (
+                    <Badge className="text-xs bg-orange-500/20 text-orange-400 border-orange-400/30">Active</Badge>
+                  )}
+                </div>
+
                 <FormField control={form.control} name="groqApiKey" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Groq API Key</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Input type={showGroq ? "text" : "password"} {...field} className="pr-10 font-mono text-sm" />
+                        <Input type={showGroq ? "text" : "password"} {...field} className="pr-10 font-mono text-sm" placeholder="gsk_..." />
                         <button type="button" onClick={() => setShowGroq(!showGroq)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                           {showGroq ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
@@ -186,8 +348,27 @@ export default function Settings() {
                     <FormMessage/>
                   </FormItem>
                 )} />
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium leading-none">Groq Model</label>
+                  <p className="text-sm text-muted-foreground">
+                    Free Llama, Mixtral & Gemma models. Enter your API key then click Fetch Models.
+                  </p>
+                  <ModelSelector
+                    provider="groq"
+                    apiKey={groqApiKey}
+                    value={groqModel}
+                    onChange={(v) => form.setValue("groqModel", v)}
+                  />
+                  {groqModel && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Selected: <span className="font-mono text-foreground">{groqModel}</span>
+                    </p>
+                  )}
+                </div>
               </div>
 
+              {/* Personality */}
               <FormField control={form.control} name="agentPersonality" render={({ field }) => (
                 <FormItem>
                   <FormLabel>System Prompt / Personality</FormLabel>

@@ -15,7 +15,9 @@ export interface Settings {
   projectDescription: string;
   projectLink: string;
   geminiApiKey?: string;
+  geminiModel?: string;
   groqApiKey?: string;
+  groqModel?: string;
   aiModel: SettingsAiModel;
   agentPersonality: string;
   autoReply: boolean;

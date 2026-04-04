@@ -18,12 +18,15 @@ import type {
 
 import type {
   ActivityPoint,
+  AiModelsResponse,
   BlockContactBody,
   BroadcastMessageBody,
   BroadcastResult,
   ContactDetail,
   ContactsListResponse,
   GetContactsParams,
+  GetGeminiModelsParams,
+  GetGroqModelsParams,
   GetMessagesParams,
   HealthStatus,
   MessagesListResponse,
@@ -1042,6 +1045,194 @@ export const useUpdateSettings = <
 > => {
   return useMutation(getUpdateSettingsMutationOptions(options));
 };
+
+/**
+ * @summary Fetch available Gemini models for a given API key
+ */
+export const getGetGeminiModelsUrl = (params: GetGeminiModelsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/settings/models/gemini?${stringifiedParams}`
+    : `/api/settings/models/gemini`;
+};
+
+export const getGeminiModels = async (
+  params: GetGeminiModelsParams,
+  options?: RequestInit,
+): Promise<AiModelsResponse> => {
+  return customFetch<AiModelsResponse>(getGetGeminiModelsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetGeminiModelsQueryKey = (params?: GetGeminiModelsParams) => {
+  return [`/api/settings/models/gemini`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetGeminiModelsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGeminiModels>>,
+  TError = ErrorType<void>,
+>(
+  params: GetGeminiModelsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGeminiModels>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetGeminiModelsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getGeminiModels>>> = ({
+    signal,
+  }) => getGeminiModels(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGeminiModels>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetGeminiModelsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGeminiModels>>
+>;
+export type GetGeminiModelsQueryError = ErrorType<void>;
+
+/**
+ * @summary Fetch available Gemini models for a given API key
+ */
+
+export function useGetGeminiModels<
+  TData = Awaited<ReturnType<typeof getGeminiModels>>,
+  TError = ErrorType<void>,
+>(
+  params: GetGeminiModelsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGeminiModels>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetGeminiModelsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Fetch available Groq models for a given API key
+ */
+export const getGetGroqModelsUrl = (params: GetGroqModelsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/settings/models/groq?${stringifiedParams}`
+    : `/api/settings/models/groq`;
+};
+
+export const getGroqModels = async (
+  params: GetGroqModelsParams,
+  options?: RequestInit,
+): Promise<AiModelsResponse> => {
+  return customFetch<AiModelsResponse>(getGetGroqModelsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetGroqModelsQueryKey = (params?: GetGroqModelsParams) => {
+  return [`/api/settings/models/groq`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetGroqModelsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGroqModels>>,
+  TError = ErrorType<void>,
+>(
+  params: GetGroqModelsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGroqModels>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetGroqModelsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getGroqModels>>> = ({
+    signal,
+  }) => getGroqModels(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGroqModels>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetGroqModelsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGroqModels>>
+>;
+export type GetGroqModelsQueryError = ErrorType<void>;
+
+/**
+ * @summary Fetch available Groq models for a given API key
+ */
+
+export function useGetGroqModels<
+  TData = Awaited<ReturnType<typeof getGroqModels>>,
+  TError = ErrorType<void>,
+>(
+  params: GetGroqModelsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGroqModels>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetGroqModelsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Get dashboard statistics

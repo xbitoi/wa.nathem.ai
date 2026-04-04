@@ -104,6 +104,16 @@ export interface BlockContactBody {
   blocked: boolean;
 }
 
+export interface AiModelOption {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface AiModelsResponse {
+  models: AiModelOption[];
+}
+
 export type SettingsAiModel =
   (typeof SettingsAiModel)[keyof typeof SettingsAiModel];
 
@@ -120,7 +130,9 @@ export interface Settings {
   projectDescription: string;
   projectLink: string;
   geminiApiKey?: string;
+  geminiModel?: string;
   groqApiKey?: string;
+  groqModel?: string;
   aiModel: SettingsAiModel;
   agentPersonality: string;
   autoReply: boolean;
@@ -162,3 +174,11 @@ export const GetMessagesDirection = {
   inbound: "inbound",
   outbound: "outbound",
 } as const;
+
+export type GetGeminiModelsParams = {
+  key: string;
+};
+
+export type GetGroqModelsParams = {
+  key: string;
+};
