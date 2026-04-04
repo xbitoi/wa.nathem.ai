@@ -103,6 +103,8 @@ function isAdminCommand(text: string): boolean {
     "سجل الرسائل", "messages", "الرسائل",
     "إحصائيات", "stats", "احصائيات",
     "حالة", "الحالة", "status",
+    "شخصية", "الشخصية", "عرض الشخصية",
+    "حذف الشخصية", "مسح الشخصية", "إزالة الشخصية",
   ];
   if (exactCommands.includes(lower)) return true;
 
@@ -111,6 +113,7 @@ function isAdminCommand(text: string): boolean {
   if (/^(?:رسائل|messages?)\s+\+?[\d]+/i.test(t)) return true;
   if (/^حظر\s+\+?[\d]+/.test(t)) return true;
   if (/^(?:إلغاء حظر|الغاء حظر)\s+\+?[\d]+/.test(t)) return true;
+  if (/^(?:تعيين شخصية|شخصية نور|تغيير شخصية|برومبت)\s+.+/is.test(t)) return true;
 
   return false;
 }
@@ -134,12 +137,16 @@ async function handleAdminCommand(text: string, phone: string): Promise<string> 
   if (lower === "مساعدة" || lower === "help" || lower === "أوامر") {
     return `📋 *أوامر المشرف:*
 
-🖥️ *حالة* — تقرير كامل عن النظام والمفاتيح والرسائل
+🖥️ *حالة* — تقرير كامل عن النظام
 📊 *إحصائيات* — أرقام سريعة عن النشاط
 
-🔛 *تشغيل* — تشغيل البوت (إيقاف الصيانة)
-⛔ *وقف* — وضع الصيانة (يرد على الكل برسالة صيانة)
+🔛 *تشغيل* — تشغيل البوت
+⛔ *وقف* — وضع الصيانة
 ✏️ *رسالة صيانة [نص]* — تغيير رسالة الصيانة
+
+🤖 *شخصية* — عرض الشخصية الحالية لنور
+✍️ *تعيين شخصية [النص]* — تغيير أو إضافة شخصية جديدة
+🗑️ *حذف الشخصية* — حذف الشخصية والعودة للافتراضية
 
 🧑‍🤝‍🧑 *جهات الاتصال* — قائمة جميع الأرقام
 📨 *سجل الرسائل* — آخر 20 رسالة في النظام
@@ -378,6 +385,30 @@ async function handleAdminCommand(text: string, phone: string): Promise<string> 
     const numRaw = unblockMatch[1].replace(/^\+/, "");
     await db.update(contactsTable).set({ isBlocked: false }).where(eq(contactsTable.phone, numRaw));
     return `✅ تم إلغاء حظر +${numRaw} بنجاح.`;
+  }
+
+  // --- View personality ---
+  if (["شخصية", "الشخصية", "عرض الشخصية"].includes(lower)) {
+    const personality = await getSetting("agentPersonality");
+    if (!personality || personality.trim() === "") {
+      return `🤖 *شخصية نور*\n\nلا توجد شخصية مخصصة حالياً.\n\nلتعيين شخصية أرسل:\n*تعيين شخصية [النص]*`;
+    }
+    return `🤖 *شخصية نور الحالية:*\n\n${personality}\n\n──────────────\nلتغييرها: *تعيين شخصية [النص الجديد]*\nللحذف: *حذف الشخصية*`;
+  }
+
+  // --- Set / update personality ---
+  const setPersonalityMatch = t.match(/^(?:تعيين شخصية|شخصية نور|تغيير شخصية|برومبت)\s+([\s\S]+)/i);
+  if (setPersonalityMatch) {
+    const newPersonality = setPersonalityMatch[1].trim();
+    await upsertSetting("agentPersonality", newPersonality);
+    const preview = newPersonality.length > 120 ? newPersonality.slice(0, 120) + "..." : newPersonality;
+    return `✅ *تم تحديث شخصية نور*\n\n📝 ${preview}\n\n──────────────\nنور ستستخدم هذه الشخصية في ردودها القادمة فوراً.`;
+  }
+
+  // --- Delete personality ---
+  if (["حذف الشخصية", "مسح الشخصية", "إزالة الشخصية"].includes(lower)) {
+    await upsertSetting("agentPersonality", "");
+    return `🗑️ *تم حذف الشخصية المخصصة*\n\nسترد نور الآن بشخصيتها الافتراضية.`;
   }
 
   return `❓ أمر غير معروف. أرسل *مساعدة* لعرض قائمة الأوامر المتاحة.`;
