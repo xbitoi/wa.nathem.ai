@@ -111,7 +111,7 @@ async function catchUpUnanswered(sock: any) {
       logger.info({ phone: contact.phone, lastMsg: lastMsg.content }, "Catch-up: replying to unanswered message");
 
       try {
-        const history = await getRecentMessages(contact.id, 20);
+        const history = await getRecentMessages(contact.id, 2);
         const conversationHistory = history.map((m) => ({
           role: m.direction === "inbound" ? ("user" as const) : ("assistant" as const),
           content: m.content,
@@ -696,8 +696,8 @@ export async function connectWhatsApp() {
 
       // ─── Auto-reply via AI (admin + regular users) ────────────────
       if (autoReplySetting !== "false" || isAdmin) {
-        // Fetch history BEFORE saving the current message to avoid duplication
-        const previousMsgs = await getRecentMessages(contact.id, 20);
+        // Fetch last 2 messages only to keep context short and focused
+        const previousMsgs = await getRecentMessages(contact.id, 2);
 
         let history = previousMsgs.map((m) => ({
           role: m.direction === "inbound" ? ("user" as const) : ("assistant" as const),
@@ -706,7 +706,7 @@ export async function connectWhatsApp() {
         while (history.length > 0 && history[0].role !== "user") {
           history = history.slice(1);
         }
-        history = history.slice(-20);
+        history = history.slice(-2);
 
         await saveMessage(contact.id, text, "inbound");
 

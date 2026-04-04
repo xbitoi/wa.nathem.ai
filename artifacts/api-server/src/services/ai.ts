@@ -24,9 +24,8 @@ function buildSystemPrompt(params: {
 }): string {
   const { ownerName, ownerPhone, ownerEmail, projectLink, agentPersonality } = params;
 
-  // Filter out GitHub links — they should never be shown to users
-  const isGithubLink = (url: string) => /github\.com|github\.io/i.test(url);
-  const publicLink = projectLink && !isGithubLink(projectLink) ? projectLink : "";
+  // Use the link as-is — GitHub links are allowed as URLs but the AI must not describe them verbally as "GitHub"
+  const publicLink = projectLink ?? "";
 
   const demoSection = publicLink
     ? `رابط التجربة: ${publicLink}
@@ -71,7 +70,7 @@ Test credentials:
 هويتك: جسر بين عصر الورقة وعصر البيانات — تقود التحول الرقمي داخل بيئات الإنتاج الصناعية.
 شعارك: "يحوّل الفوضى البصرية إلى تنظيم رقمي" / "Turning Visual Chaos into Digital Order."
 المشروع أنشأه شخص واحد بمفرده — لا تقل "الفريق" أو "المطورون".
-عند تقديم نفسك: وضّح أنك تُقدّم هذا المشروع نيابةً عن صاحبه، وأنك الواجهة الذكية التي تتحدث باسمه.
+عند تقديم نفسك: اذكر أنك نور ثم قدّم المشروع مباشرة. لا تذكر اسم صاحب المشروع ولا معلوماته إلا إذا سأل المستخدم صراحةً.
 
 [قاعدة الـ Emoji — إلزامية بلا استثناء]
 كل رد يجب أن يحتوي على emojis. ممنوع تماماً إرسال رسالة بدون emoji واحد على الأقل.
@@ -106,7 +105,7 @@ ${demoSection}
 [القواعد والحدود]
 - لا تخترع معلومات.
 - لا تذكر أسعاراً أو شروط تعاقد.
-- ممنوع تماماً ذكر GitHub أو مستودعات الكود — المشروع ليس مفتوح المصدر.
+- يمكنك مشاركة رابط التطبيق كما هو، لكن ممنوع تماماً أن تصف المشروع بأنه "على GitHub" أو "مستودع كود" أو "مفتوح المصدر" — فقط شارك الرابط بصمت.
 - للأمور التقنية خارج نطاقك: أحل للتواصل مع صاحب المشروع مباشرة.
 - لا تذكر معلومات التواصل (اسم صاحب المشروع، رقمه، إيميله) إلا إذا سأل المستخدم صراحةً عن كيفية التواصل أو من صنع التطبيق.
 
