@@ -52,11 +52,17 @@ HTTP_STATUS=$(curl -s -o /tmp/pages-response.json -w "%{http_code}" \
 
 if [ "$HTTP_STATUS" = "409" ]; then
   echo "Pages already enabled. Updating source to main:/docs..."
-  curl -s -X PUT \
+  PUT_STATUS=$(curl -s -o /tmp/pages-put-response.json -w "%{http_code}" \
+    -X PUT \
     "${API_HEADERS[@]}" \
     "https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/pages" \
-    -d "${PAGES_SOURCE}" > /dev/null
-  echo "Pages source updated to branch=main, path=/docs."
+    -d "${PAGES_SOURCE}")
+  if [ "$PUT_STATUS" != "204" ] && [ "$PUT_STATUS" != "200" ]; then
+    echo "ERROR: Failed to update Pages source (HTTP ${PUT_STATUS})"
+    cat /tmp/pages-put-response.json
+    exit 1
+  fi
+  echo "Pages source updated to branch=main, path=/docs (HTTP ${PUT_STATUS})."
 elif [ "$HTTP_STATUS" = "201" ] || [ "$HTTP_STATUS" = "200" ]; then
   echo "Pages enabled (HTTP ${HTTP_STATUS})."
 else

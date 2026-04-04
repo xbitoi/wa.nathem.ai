@@ -70,6 +70,7 @@ pnpm Monorepo  ·  GitHub Actions
 |--------|-------|
 | [xbitoi.github.io/nour-agent](https://xbitoi.github.io/nour-agent) | الصفحة الرسمية (GitHub Pages) |
 | [github.com/xbitoi/nour-agent](https://github.com/xbitoi/nour-agent) | المستودع |
+| [GITHUB_DEPLOYMENT.md](./GITHUB_DEPLOYMENT.md) | توثيق إعداد النشر وإعادة إنشائه |
 
 ---
 
