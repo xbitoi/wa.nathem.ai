@@ -28,9 +28,10 @@ const SESSION_DIR = path.join(process.cwd(), ".whatsapp-session");
 // In-memory set of phones that authenticated as admin in this session
 const adminSessions = new Set<string>();
 
-// ─── State machine for "forward message to admin" multi-turn flow ─────────
+// ─── State machine for "contact / forward message to admin" multi-turn flow ──
 interface ForwardState {
   step: "ask_name" | "ask_msg";
+  mode: "contact" | "forward"; // contact = notify only, forward = send specific message
   name?: string;
 }
 const pendingForwards = new Map<string, ForwardState>();
@@ -704,23 +705,54 @@ export async function connectWhatsApp() {
       // ─── Auto-reply via AI (admin + regular users) ────────────────
       if (autoReplySetting !== "false" || isAdmin) {
 
-        // ── Forward-to-admin state machine (multi-turn flow) ─────────
+        // ── Contact/Forward-to-admin state machine (multi-turn) ──────
         const fwdState = pendingForwards.get(phone);
         if (fwdState) {
           await saveMessage(contact.id, text, "inbound");
+          const userName = text.trim();
 
           if (fwdState.step === "ask_name") {
-            // User just gave their name — save it and ask for the message
-            fwdState.name = text.trim();
-            fwdState.step = "ask_msg";
-            const askMsg = `شكراً ${fwdState.name} 🤝\nالآن اكتب رسالتك وأنا سأوصّلها لصاحب المشروع مباشرةً 📩`;
-            await sock.sendMessage(jid, { text: askMsg });
-            await saveMessage(contact.id, askMsg, "outbound", "system/forward");
+            fwdState.name = userName;
+
+            if (fwdState.mode === "contact") {
+              // ── Contact mode: notify admin right away (no message needed) ──
+              const senderLabel = `${userName} (+${contact.phone})`;
+              const adminMsg =
+                `📞 *طلب تواصل عبر نور*\n\n` +
+                `👤 الاسم: ${senderLabel}\n\n` +
+                `💬 يريد التواصل مع صاحب المشروع.`;
+
+              let sent = false;
+              try {
+                const rawAdminPhone = (await getSetting("adminPhone"))?.replace(/@.+$/, "");
+                if (rawAdminPhone && state.client) {
+                  await state.client.sendMessage(`${rawAdminPhone}@s.whatsapp.net`, { text: adminMsg });
+                  sent = true;
+                  logger.info({ from: contact.phone, name: userName }, "Contact request forwarded to admin");
+                }
+              } catch (fwdErr) {
+                logger.error({ fwdErr }, "Failed to send contact request to admin");
+              }
+
+              pendingForwards.delete(phone);
+              const confirmMsg = sent
+                ? `✅ تم إبلاغ صاحب المشروع باسمك يا ${userName}، سيتواصل معك قريباً إن شاء الله 🤝`
+                : `⚠️ حدث خطأ تقني، يمكنك التواصل مباشرةً عبر المعلومات المتاحة.`;
+              await sock.sendMessage(jid, { text: confirmMsg });
+              await saveMessage(contact.id, confirmMsg, "outbound", "system/contact");
+
+            } else {
+              // ── Forward mode: ask for message next ──
+              fwdState.step = "ask_msg";
+              const askMsg = `شكراً ${userName} 🤝\nالآن اكتب رسالتك وأنا سأوصّلها لصاحب المشروع مباشرةً 📩`;
+              await sock.sendMessage(jid, { text: askMsg });
+              await saveMessage(contact.id, askMsg, "outbound", "system/forward");
+            }
             return;
           }
 
           if (fwdState.step === "ask_msg") {
-            // User provided the message — send to admin
+            // User provided the message — send to admin with name
             const msgContent = text.trim();
             const senderLabel = fwdState.name
               ? `${fwdState.name} (+${contact.phone})`
@@ -744,7 +776,7 @@ export async function connectWhatsApp() {
 
             pendingForwards.delete(phone);
             const confirmMsg = sent
-              ? `✅ تم إرسال رسالتك لصاحب المشروع، سيتواصل معك قريباً إن شاء الله 🤝`
+              ? `✅ وصلت رسالتك لصاحب المشروع، سيتواصل معك قريباً إن شاء الله 🤝`
               : `⚠️ حدث خطأ في الإرسال، يمكنك التواصل مباشرةً عبر المعلومات المتاحة.`;
             await sock.sendMessage(jid, { text: confirmMsg });
             await saveMessage(contact.id, confirmMsg, "outbound", "system/forward");
@@ -776,12 +808,16 @@ export async function connectWhatsApp() {
           let { reply, model } = await generateAIReply(text, history, isReturningUser, contact.messageCount);
           await sock.sendPresenceUpdate("paused", jid);
 
-          // ── Intercept [FORWARD_ADMIN_START] tag — begin multi-turn flow ──
-          if (reply.includes("[FORWARD_ADMIN_START]")) {
+          // ── Intercept flow tags — start multi-turn state machine ────
+          if (reply.includes("[CONTACT_OWNER_START]")) {
+            // Mode: just notify admin with user's name (no message needed)
+            reply = reply.replace(/\[CONTACT_OWNER_START\]/g, "").trim();
+            pendingForwards.set(phone, { step: "ask_name", mode: "contact" });
+            reply += `\n\nما اسمك حتى أُعرّفك لصاحب المشروع؟ 👤`;
+          } else if (reply.includes("[FORWARD_ADMIN_START]")) {
+            // Mode: user wants to send a specific message
             reply = reply.replace(/\[FORWARD_ADMIN_START\]/g, "").trim();
-            // Start the state machine: ask for name first
-            pendingForwards.set(phone, { step: "ask_name" });
-            // Append name-request to the AI reply
+            pendingForwards.set(phone, { step: "ask_name", mode: "forward" });
             reply += `\n\nما اسمك حتى أُعرّفك لصاحب المشروع؟ 👤`;
           }
 
