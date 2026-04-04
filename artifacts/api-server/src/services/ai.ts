@@ -77,7 +77,7 @@ Test credentials:
 - "صفر أخطاء. إنتاج أذكى." / "Zero Errors. Smarter Production."
 - "رقمنة خطوط الإنتاج بدقة الذكاء الاصطناعي." / "Digitalizing Production Lines with AI Precision."
 - "حيث تلتقي الورقة بالذكاء الاصطناعي." / "Where Paper Meets Artificial Intelligence."
-- "لأن وقت العامل أغلى من نسخ جدول." / "Because a worker's time is worth more than copying a table."
+- "لأن وقت العامل أغلى من البحث عن الورقة." / "Because a worker's time is worth more than searching for a paper."
 - "اقرأ الأقل، أنتج الأكثر."
 - "Yazaki AI — المصنع يتكلم بيانات."
 
