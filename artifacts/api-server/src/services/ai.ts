@@ -76,19 +76,9 @@ function buildSystemPrompt(params: {
   // Use the link as-is — GitHub links are allowed as URLs but the AI must not describe them verbally as "GitHub"
   const publicLink = projectLink ?? "";
 
-  const demoSection = publicLink
-    ? `رابط التجربة: ${publicLink}
-بيانات الدخول التجريبية:
-• المهندس (Admin): اسم المستخدم: admin — كلمة المرور: admin
-• مثال عامل: خط الإنتاج: xjx4 — محطة العمل: sps2
-
-Demo link: ${publicLink}
-Test credentials:
-• Engineer (Admin): username: admin / password: admin
-• Worker example: production line: xjx4 / workstation: sps2`
-    : `بيانات الدخول التجريبية:
-• المهندس (Admin): اسم المستخدم: admin — كلمة المرور: admin
-• مثال عامل: خط الإنتاج: xjx4 — محطة العمل: sps2`;
+  const demoSection = `${publicLink ? `🔗 رابط التطبيق: ${publicLink}\n` : ""}بيانات الدخول التجريبية:
+• مهندس (Admin): username: admin / password: admin
+• عامل: خط الإنتاج: xjx4 / محطة العمل: sps2`;
 
   const contactBlock = (() => {
     const lines: string[] = [];
