@@ -193,6 +193,8 @@ export const GetSettingsResponse = zod.object({
   aiModel: zod.enum(["gemini", "groq"]),
   agentPersonality: zod.string().optional(),
   autoReply: zod.boolean(),
+  maintenanceMode: zod.boolean().optional(),
+  maintenanceMessage: zod.string().optional(),
 });
 
 /**
@@ -213,6 +215,8 @@ export const UpdateSettingsBody = zod.object({
   aiModel: zod.enum(["gemini", "groq"]),
   agentPersonality: zod.string().optional(),
   autoReply: zod.boolean(),
+  maintenanceMode: zod.boolean().optional(),
+  maintenanceMessage: zod.string().optional(),
 });
 
 export const UpdateSettingsResponse = zod.object({
@@ -230,6 +234,8 @@ export const UpdateSettingsResponse = zod.object({
   aiModel: zod.enum(["gemini", "groq"]),
   agentPersonality: zod.string().optional(),
   autoReply: zod.boolean(),
+  maintenanceMode: zod.boolean().optional(),
+  maintenanceMessage: zod.string().optional(),
 });
 
 /**

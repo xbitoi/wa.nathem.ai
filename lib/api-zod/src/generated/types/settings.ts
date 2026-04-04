@@ -22,4 +22,6 @@ export interface Settings {
   aiModel: SettingsAiModel;
   agentPersonality?: string;
   autoReply: boolean;
+  maintenanceMode?: boolean;
+  maintenanceMessage?: string;
 }

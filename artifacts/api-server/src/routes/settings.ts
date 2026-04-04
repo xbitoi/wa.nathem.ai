@@ -30,6 +30,8 @@ function buildSettingsObject(raw: Record<string, string>) {
     aiModel: (raw.aiModel as "gemini" | "groq") ?? "gemini",
     agentPersonality: raw.agentPersonality ?? "",
     autoReply: raw.autoReply !== "false",
+    maintenanceMode: raw.maintenanceMode === "true",
+    maintenanceMessage: raw.maintenanceMessage ?? "⚙️ النظام في وضع الصيانة حالياً. سيعود قريباً — We'll be back soon.",
   };
 }
 
@@ -58,6 +60,8 @@ router.post("/", async (req, res) => {
     { key: "aiModel", value: data.aiModel ?? "gemini" },
     { key: "agentPersonality", value: data.agentPersonality ?? "" },
     { key: "autoReply", value: String(data.autoReply ?? true) },
+    { key: "maintenanceMode", value: String(data.maintenanceMode ?? false) },
+    { key: "maintenanceMessage", value: data.maintenanceMessage ?? "⚙️ النظام في وضع الصيانة حالياً. سيعود قريباً — We'll be back soon." },
   ];
 
   for (const { key, value } of updates) {

@@ -533,6 +533,10 @@ components:
           type: string
         autoReply:
           type: boolean
+        maintenanceMode:
+          type: boolean
+        maintenanceMessage:
+          type: string
       required: [aiModel, autoReply]
 
     Stats:

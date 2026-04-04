@@ -25,12 +25,19 @@ const state: WAState = {
 
 const SESSION_DIR = path.join(process.cwd(), ".whatsapp-session");
 
-// In-memory admin sessions (authenticated by password "كيرا")
+// In-memory set of phones that authenticated as admin in this session
 const adminSessions = new Set<string>();
 
 async function getSetting(key: string): Promise<string | null> {
   const rows = await db.select().from(settingsTable).where(eq(settingsTable.key, key));
   return rows[0]?.value ?? null;
+}
+
+async function upsertSetting(key: string, value: string) {
+  await db
+    .insert(settingsTable)
+    .values({ key, value })
+    .onConflictDoUpdate({ target: settingsTable.key, set: { value } });
 }
 
 async function upsertContact(phone: string, name?: string) {
@@ -63,7 +70,7 @@ async function getRecentMessages(contactId: number, limit = 10) {
     .limit(limit);
 }
 
-// Send error/system alert to admin only
+// Send system alert to admin only
 export async function sendAdminAlert(message: string) {
   if (state.status !== "connected" || !state.client) return;
   const adminPhone = await getSetting("adminPhone");
@@ -76,14 +83,24 @@ export async function sendAdminAlert(message: string) {
   }
 }
 
-// Handle admin commands — returns admin reply or null if not an admin command
-async function handleAdminCommand(text: string, phone: string): Promise<string | null> {
+// Check if phone is recognized admin (DB or in-memory session)
+async function isAdminPhone(phone: string): Promise<boolean> {
+  const savedAdminPhone = await getSetting("adminPhone");
+  return phone === savedAdminPhone || adminSessions.has(phone);
+}
+
+// Handle admin commands — always returns a reply string
+async function handleAdminCommand(text: string, phone: string): Promise<string> {
   const t = text.trim();
   const lower = t.toLowerCase().replace(/\s+/g, " ");
 
-  // Logout from admin mode
+  // Logout from admin mode (removes from in-memory only, DB stays)
   if (lower === "خروج" || lower === "logout" || lower === "exit") {
     adminSessions.delete(phone);
+    const savedAdminPhone = await getSetting("adminPhone");
+    if (phone === savedAdminPhone) {
+      return "ℹ️ رقمك محفوظ كأدمن رئيسي — لن يُحذف من النظام. فقط الجلسة الحالية أُغلقت.\n\nأرسل *أنا كيرا* للعودة.";
+    }
     return "🔓 تم إلغاء وضع المشرف. أنت الآن مستخدم عادي.";
   }
 
@@ -91,16 +108,41 @@ async function handleAdminCommand(text: string, phone: string): Promise<string |
   if (lower === "مساعدة" || lower === "help" || lower === "أوامر") {
     return `📋 *أوامر المشرف:*
 
-🧑‍🤝‍🧑 *جهات الاتصال* — قائمة بجميع الأرقام
+🔛 *تشغيل* — تشغيل البوت (إيقاف الصيانة)
+⛔ *وقف* — وضع الصيانة (يرد على الكل برسالة صيانة)
+✏️ *رسالة صيانة [نص]* — تغيير رسالة الصيانة
+
+🧑‍🤝‍🧑 *جهات الاتصال* — قائمة جميع الأرقام
 📨 *سجل الرسائل* — آخر 20 رسالة في النظام
 📊 *إحصائيات* — أرقام عامة عن النشاط
 🔍 *رسائل [رقم]* — محادثة رقم معين
 🚫 *حظر [رقم]* — حظر رقم
 ✅ *إلغاء حظر [رقم]* — رفع الحظر عن رقم
-🚪 *خروج* — الخروج من وضع المشرف`;
+🚪 *خروج* — إغلاق الجلسة الحالية`;
   }
 
-  // Contacts list
+  // --- Maintenance mode ON ---
+  if (lower === "وقف" || lower === "صيانة" || lower === "maintenance" || lower === "off") {
+    await upsertSetting("maintenanceMode", "true");
+    const msg = await getSetting("maintenanceMessage") ?? "⚙️ النظام في وضع الصيانة. سيعود قريباً.";
+    return `⛔ *وضع الصيانة مفعّل*\n\nجميع الرسائل الواردة ستتلقى:\n"${msg}"\n\nأرسل *تشغيل* للعودة للعمل.`;
+  }
+
+  // --- Maintenance mode OFF ---
+  if (lower === "تشغيل" || lower === "start" || lower === "online" || lower === "on") {
+    await upsertSetting("maintenanceMode", "false");
+    return "✅ *البوت نشط الآن*\n\nالرد التلقائي على الرسائل مفعّل.";
+  }
+
+  // --- Change maintenance message ---
+  const maintMsgMatch = t.match(/^رسالة صيانة\s+(.+)/is);
+  if (maintMsgMatch) {
+    const newMsg = maintMsgMatch[1].trim();
+    await upsertSetting("maintenanceMessage", newMsg);
+    return `✏️ تم تحديث رسالة الصيانة:\n"${newMsg}"`;
+  }
+
+  // --- Contacts list ---
   if (lower === "جهات الاتصال" || lower === "contacts" || lower === "الأرقام" || lower === "الارقام") {
     const contacts = await db
       .select()
@@ -119,7 +161,7 @@ async function handleAdminCommand(text: string, phone: string): Promise<string |
     return `📋 *جهات الاتصال (${contacts.length}):*\n\n${lines.join("\n")}`;
   }
 
-  // Last 20 messages system-wide
+  // --- Last 20 messages system-wide ---
   if (lower === "سجل الرسائل" || lower === "messages" || lower === "الرسائل") {
     const msgs = await db
       .select({ content: messagesTable.content, direction: messagesTable.direction, timestamp: messagesTable.timestamp, phone: contactsTable.phone, name: contactsTable.name })
@@ -141,10 +183,10 @@ async function handleAdminCommand(text: string, phone: string): Promise<string |
     return `📨 *آخر ${msgs.length} رسائل:*\n\n${lines.join("\n\n")}`;
   }
 
-  // Statistics
+  // --- Statistics ---
   if (lower === "إحصائيات" || lower === "stats" || lower === "احصائيات") {
-    const [contacts] = await db.select({ count: sql<number>`count(*)` }).from(contactsTable);
-    const [messages] = await db.select({ count: sql<number>`count(*)` }).from(messagesTable);
+    const [totalContacts] = await db.select({ count: sql<number>`count(*)` }).from(contactsTable);
+    const [totalMessages] = await db.select({ count: sql<number>`count(*)` }).from(messagesTable);
     const [blocked] = await db.select({ count: sql<number>`count(*)` }).from(contactsTable).where(eq(contactsTable.isBlocked, true));
     const [inbound] = await db.select({ count: sql<number>`count(*)` }).from(messagesTable).where(eq(messagesTable.direction, "inbound"));
     const [outbound] = await db.select({ count: sql<number>`count(*)` }).from(messagesTable).where(eq(messagesTable.direction, "outbound"));
@@ -153,19 +195,21 @@ async function handleAdminCommand(text: string, phone: string): Promise<string |
     const geminiModel = (await getSetting("geminiModel")) ?? "—";
     const groqModel = (await getSetting("groqModel")) ?? "—";
     const activeModel = aiModel === "gemini" ? `Gemini / ${geminiModel}` : `Groq / ${groqModel}`;
+    const maintenance = (await getSetting("maintenanceMode")) === "true";
 
     return `📊 *إحصائيات النظام:*
 
-👥 جهات الاتصال: ${contacts.count}
+👥 جهات الاتصال: ${totalContacts.count}
 🚫 محظورون: ${blocked.count}
-📨 إجمالي الرسائل: ${messages.count}
+📨 إجمالي الرسائل: ${totalMessages.count}
 ⬅️ مستقبلة: ${inbound.count}
 ➡️ مرسلة: ${outbound.count}
 🤖 الموديل النشط: ${activeModel}
-📡 حالة واتساب: ${state.status === "connected" ? `✅ متصل (+${state.phone})` : "❌ غير متصل"}`;
+📡 حالة واتساب: ${state.status === "connected" ? `✅ متصل (+${state.phone})` : "❌ غير متصل"}
+🔧 وضع الصيانة: ${maintenance ? "⛔ مفعّل" : "✅ معطّل"}`;
   }
 
-  // Messages for specific contact: "رسائل [number]"
+  // --- Messages for specific contact ---
   const msgsMatch = t.match(/^(?:رسائل|messages?)\s+(\+?[\d]+)/i);
   if (msgsMatch) {
     const numRaw = msgsMatch[1].replace(/^\+/, "");
@@ -191,7 +235,7 @@ async function handleAdminCommand(text: string, phone: string): Promise<string |
     return `📋 *رسائل +${numRaw}${name}:*\n\n${lines.join("\n")}`;
   }
 
-  // Block contact: "حظر [number]"
+  // --- Block contact ---
   const blockMatch = t.match(/^حظر\s+(\+?[\d]+)/);
   if (blockMatch) {
     const numRaw = blockMatch[1].replace(/^\+/, "");
@@ -201,7 +245,7 @@ async function handleAdminCommand(text: string, phone: string): Promise<string |
     return `🚫 تم حظر +${numRaw} بنجاح.`;
   }
 
-  // Unblock contact: "إلغاء حظر [number]"
+  // --- Unblock contact ---
   const unblockMatch = t.match(/^(?:إلغاء حظر|الغاء حظر)\s+(\+?[\d]+)/);
   if (unblockMatch) {
     const numRaw = unblockMatch[1].replace(/^\+/, "");
@@ -209,7 +253,6 @@ async function handleAdminCommand(text: string, phone: string): Promise<string |
     return `✅ تم إلغاء حظر +${numRaw} بنجاح.`;
   }
 
-  // Unknown command — remind admin of help
   return `❓ أمر غير معروف. أرسل *مساعدة* لعرض قائمة الأوامر المتاحة.`;
 }
 
@@ -296,11 +339,11 @@ export async function connectWhatsApp() {
 
         if (!text) continue;
 
-        const autoReply = (await getSetting("autoReply")) ?? "true";
-        const adminPhone = (await getSetting("adminPhone")) ?? "";
         const contact = await upsertContact(phone, pushName);
+        const adminPhone = (await getSetting("adminPhone")) ?? "";
+        const isAdmin = phone === adminPhone || adminSessions.has(phone);
 
-        // --- Admin password check ---
+        // ─── Admin password check ─────────────────────────────────────
         const normalizedText = text.trim().toLowerCase().replace(/\s+/g, " ");
         const isKiraPassword =
           normalizedText === "أنا كيرا" ||
@@ -310,39 +353,49 @@ export async function connectWhatsApp() {
           normalizedText === "ana kira";
 
         if (isKiraPassword) {
+          // Save phone persistently in DB as admin
+          await upsertSetting("adminPhone", phone);
           adminSessions.add(phone);
           await saveMessage(contact.id, text, "inbound");
+
           const greeting = `🔐 *وضع المشرف مفعّل*
 
-أهلاً بك يا مشرف! يمكنك الآن استخدام الأوامر التالية:
+مرحباً! رقمك (+${phone}) محفوظ الآن كمشرف رئيسي في النظام.
 
-📋 *مساعدة* — قائمة جميع الأوامر
-🧑‍🤝‍🧑 *جهات الاتصال* — جميع الأرقام
-📨 *سجل الرسائل* — آخر الرسائل
-📊 *إحصائيات* — نشاط النظام
-🔍 *رسائل [رقم]* — محادثة رقم محدد
-🚫 *حظر [رقم]* / ✅ *إلغاء حظر [رقم]*
-🚪 *خروج* — إلغاء وضع المشرف`;
+📋 أرسل *مساعدة* لعرض جميع الأوامر المتاحة.`;
           await sock.sendMessage(jid, { text: greeting });
           await saveMessage(contact.id, greeting, "outbound", "system");
           continue;
         }
 
-        // --- Admin commands ---
-        if (adminSessions.has(phone)) {
+        // ─── Admin commands ───────────────────────────────────────────
+        if (isAdmin) {
           await saveMessage(contact.id, text, "inbound");
           const adminReply = await handleAdminCommand(text, phone);
-          await sock.sendMessage(jid, { text: adminReply! });
-          await saveMessage(contact.id, adminReply!, "outbound", "system/admin");
+          await sock.sendMessage(jid, { text: adminReply });
+          await saveMessage(contact.id, adminReply, "outbound", "system/admin");
           continue;
         }
 
-        // --- Regular user ---
+        // ─── Blocked contacts ─────────────────────────────────────────
         if (contact.isBlocked) continue;
 
         await saveMessage(contact.id, text, "inbound");
         logger.info({ phone, text: text.slice(0, 50) }, "Inbound message");
 
+        // ─── Maintenance mode ─────────────────────────────────────────
+        const maintenanceMode = (await getSetting("maintenanceMode")) === "true";
+        if (maintenanceMode) {
+          const maintenanceMsg =
+            (await getSetting("maintenanceMessage")) ??
+            "⚙️ النظام في وضع الصيانة حالياً. سيعود قريباً — We'll be back soon.";
+          await sock.sendMessage(jid, { text: maintenanceMsg });
+          await saveMessage(contact.id, maintenanceMsg, "outbound", "system/maintenance");
+          continue;
+        }
+
+        // ─── Auto-reply via AI ────────────────────────────────────────
+        const autoReply = (await getSetting("autoReply")) ?? "true";
         if (autoReply === "true") {
           const recentMsgs = await getRecentMessages(contact.id, 10);
           const history = recentMsgs.slice(-9).map((m) => ({
@@ -356,7 +409,6 @@ export async function connectWhatsApp() {
             await saveMessage(contact.id, reply, "outbound", model);
           } catch (err: any) {
             logger.error({ err }, "AI reply failed");
-            // Only notify admin, never the user
             if (adminPhone) {
               await sendAdminAlert(`فشل الرد على +${phone}: ${err?.message ?? "خطأ غير معروف"}`);
             }

@@ -30,6 +30,8 @@ const settingsSchema = z.object({
   aiModel: z.enum(["gemini", "groq"]),
   agentPersonality: z.string().optional(),
   autoReply: z.boolean(),
+  maintenanceMode: z.boolean(),
+  maintenanceMessage: z.string().optional(),
 });
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
@@ -161,7 +163,9 @@ export default function Settings() {
       projectName: "", projectDescription: "", projectLink: "",
       geminiApiKey: "", geminiModel: "",
       groqApiKey: "", groqModel: "",
-      aiModel: "gemini", agentPersonality: "", autoReply: true
+      aiModel: "gemini", agentPersonality: "", autoReply: true,
+      maintenanceMode: false,
+      maintenanceMessage: "⚙️ النظام في وضع الصيانة حالياً. سيعود قريباً — We'll be back soon.",
     }
   });
 
@@ -181,6 +185,8 @@ export default function Settings() {
         groqApiKey: settings.groqApiKey || "",
         groqModel: (settings as any).groqModel || "",
         agentPersonality: settings.agentPersonality || "",
+        maintenanceMode: (settings as any).maintenanceMode ?? false,
+        maintenanceMessage: (settings as any).maintenanceMessage || "⚙️ النظام في وضع الصيانة حالياً. سيعود قريباً — We'll be back soon.",
       });
     }
   }, [settings, form]);
@@ -290,6 +296,55 @@ export default function Settings() {
                   <FormMessage/>
                 </FormItem>
               )} />
+            </CardContent>
+          </Card>
+
+          {/* Maintenance Mode */}
+          <Card className={`backdrop-blur border-2 ${form.watch("maintenanceMode") ? "border-orange-500/60 bg-orange-500/5" : "border-border/50 bg-card/50"}`}>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`h-3 w-3 rounded-full ${form.watch("maintenanceMode") ? "bg-orange-500 animate-pulse" : "bg-green-500"}`} />
+                  <div>
+                    <CardTitle>Maintenance Mode</CardTitle>
+                    <CardDescription>
+                      {form.watch("maintenanceMode")
+                        ? "Bot is paused — only the admin can chat."
+                        : "Bot is active and responding normally."}
+                    </CardDescription>
+                  </div>
+                </div>
+                <FormField control={form.control} name="maintenanceMode" render={({ field }) => (
+                  <FormItem className="flex items-center gap-2 space-y-0">
+                    <FormLabel className={`text-sm mt-0 font-semibold ${field.value ? "text-orange-400" : "text-green-400"}`}>
+                      {field.value ? "⛔ Paused" : "✅ Active"}
+                    </FormLabel>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        data-testid="switch-maintenance"
+                        className={field.value ? "data-[state=checked]:bg-orange-500" : ""}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )} />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <FormField control={form.control} name="maintenanceMessage" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Message sent to users during maintenance</FormLabel>
+                  <FormDescription>This exact text is sent to anyone who messages while the bot is paused. The admin is not affected.</FormDescription>
+                  <FormControl>
+                    <Textarea rows={2} {...field} />
+                  </FormControl>
+                  <FormMessage/>
+                </FormItem>
+              )} />
+              <p className="text-xs text-muted-foreground mt-3">
+                💡 You can also toggle maintenance from WhatsApp by sending <span className="font-mono bg-muted px-1 rounded">وقف</span> or <span className="font-mono bg-muted px-1 rounded">تشغيل</span> after authenticating as admin.
+              </p>
             </CardContent>
           </Card>
 
