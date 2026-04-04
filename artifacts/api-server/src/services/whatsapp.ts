@@ -78,6 +78,64 @@ async function getRecentMessages(contactId: number, limit = 10) {
     .limit(limit);
 }
 
+// ─── Startup catch-up: reply to unanswered messages after reconnect ───────────
+async function catchUpUnanswered(sock: any) {
+  try {
+    // Only consider messages from the last 6 hours
+    const cutoff = new Date(Date.now() - 6 * 60 * 60 * 1000);
+
+    // Get all active (non-blocked) contacts
+    const contacts = await db
+      .select()
+      .from(contactsTable)
+      .where(eq(contactsTable.isBlocked, false));
+
+    for (const contact of contacts) {
+      // Get the last message from this contact
+      const [lastMsg] = await db
+        .select()
+        .from(messagesTable)
+        .where(eq(messagesTable.contactId, contact.id))
+        .orderBy(desc(messagesTable.timestamp))
+        .limit(1);
+
+      // Skip if no messages, or last message was already from us (outbound)
+      if (!lastMsg) continue;
+      if (lastMsg.direction === "outbound") continue;
+
+      // Skip if older than 6 hours
+      if (new Date(lastMsg.timestamp) < cutoff) continue;
+
+      // This contact has an unanswered inbound message — reply via AI
+      const jid = `${contact.phone}@s.whatsapp.net`;
+      logger.info({ phone: contact.phone, lastMsg: lastMsg.content }, "Catch-up: replying to unanswered message");
+
+      try {
+        const history = await getRecentMessages(contact.id, 20);
+        const conversationHistory = history.map((m) => ({
+          role: m.direction === "inbound" ? ("user" as const) : ("assistant" as const),
+          content: m.content,
+        }));
+
+        await sock.sendPresenceUpdate("composing", jid);
+        const { reply } = await generateAIReply(lastMsg.content, conversationHistory);
+        await sock.sendPresenceUpdate("paused", jid);
+
+        await sock.sendMessage(jid, { text: reply });
+        await saveMessage(contact.id, reply, "outbound");
+        logger.info({ phone: contact.phone }, "Catch-up reply sent");
+      } catch (err) {
+        logger.error({ err, phone: contact.phone }, "Catch-up reply failed for contact");
+      }
+
+      // Wait 3 seconds between contacts to avoid WhatsApp rate limits
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+  } catch (err) {
+    logger.error({ err }, "catchUpUnanswered failed");
+  }
+}
+
 // Send system alert to admin only
 export async function sendAdminAlert(message: string) {
   if (state.status !== "connected" || !state.client) return;
@@ -517,6 +575,8 @@ export async function connectWhatsApp() {
         state.name = user?.name ?? null;
         logger.info({ phone: state.phone }, "WhatsApp connected");
         startHeartbeat(sock); // start keep-alive watchdog
+        // After 5 seconds (let connection stabilise), catch up with unanswered messages
+        setTimeout(() => catchUpUnanswered(sock), 5000);
       }
 
       if (connection === "close") {
@@ -634,7 +694,7 @@ export async function connectWhatsApp() {
       // ─── Auto-reply via AI (admin + regular users) ────────────────
       if (autoReplySetting !== "false" || isAdmin) {
         // Fetch history BEFORE saving the current message to avoid duplication
-        const previousMsgs = await getRecentMessages(contact.id, 12);
+        const previousMsgs = await getRecentMessages(contact.id, 20);
 
         let history = previousMsgs.map((m) => ({
           role: m.direction === "inbound" ? ("user" as const) : ("assistant" as const),
@@ -643,7 +703,7 @@ export async function connectWhatsApp() {
         while (history.length > 0 && history[0].role !== "user") {
           history = history.slice(1);
         }
-        history = history.slice(-10);
+        history = history.slice(-20);
 
         await saveMessage(contact.id, text, "inbound");
 
