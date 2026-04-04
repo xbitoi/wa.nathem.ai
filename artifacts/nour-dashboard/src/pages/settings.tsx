@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Eye, EyeOff, RefreshCw, CheckCircle2, AlertCircle, Trash2, MessageSquareOff, UsersRound, CloudOff, Cloud, CloudUpload } from "lucide-react";
+import { Loader2, Eye, EyeOff, RefreshCw, CheckCircle2, AlertCircle, Trash2, MessageSquareOff, UsersRound, Save, CloudUpload, Cloud, CloudOff } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -37,25 +37,12 @@ const settingsSchema = z.object({
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
 
-interface ModelOption {
-  id: string;
-  name: string;
-  description: string;
-}
-
+interface ModelOption { id: string; name: string; description: string; }
 type FetchStatus = "idle" | "loading" | "success" | "error";
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
-function ModelSelector({
-  provider,
-  apiKey,
-  value,
-  onChange,
-}: {
-  provider: "gemini" | "groq";
-  apiKey: string;
-  value: string;
-  onChange: (v: string) => void;
+function ModelSelector({ provider, apiKey, value, onChange }: {
+  provider: "gemini" | "groq"; apiKey: string; value: string; onChange: (v: string) => void;
 }) {
   const [models, setModels] = useState<ModelOption[]>([]);
   const [status, setStatus] = useState<FetchStatus>("idle");
@@ -67,100 +54,68 @@ function ModelSelector({
       toast({ title: "Missing API Key", description: `Enter the ${provider === "gemini" ? "Gemini" : "Groq"} API key first.`, variant: "destructive" });
       return;
     }
-    setStatus("loading");
-    setError("");
+    setStatus("loading"); setError("");
     try {
       const res = await fetch(`/api/settings/models/${provider}?key=${encodeURIComponent(apiKey)}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed");
       setModels(data.models ?? []);
       setStatus("success");
-      if ((data.models ?? []).length === 0) {
-        setError("No compatible models found for this key.");
-      } else if (!value) {
-        onChange(data.models[0].id);
-      }
-    } catch (e: any) {
-      setStatus("error");
-      setError(e.message ?? "Unknown error");
-    }
+      if ((data.models ?? []).length === 0) setError("No compatible models found for this key.");
+      else if (!value) onChange(data.models[0].id);
+    } catch (e: any) { setStatus("error"); setError(e.message ?? "Unknown error"); }
   }, [apiKey, provider, value, onChange, toast]);
 
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={fetchModels}
-          disabled={status === "loading"}
-          className="text-xs gap-1.5"
-        >
-          {status === "loading" ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
-          ) : (
-            <RefreshCw className="h-3 w-3" />
-          )}
+        <Button type="button" variant="outline" size="sm" onClick={fetchModels} disabled={status === "loading"} className="text-xs gap-1.5">
+          {status === "loading" ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
           {models.length > 0 ? "Refresh Models" : "Fetch Models"}
         </Button>
         {status === "success" && models.length > 0 && (
-          <Badge variant="outline" className="text-green-400 border-green-400/30 text-xs gap-1">
-            <CheckCircle2 className="h-3 w-3" />
-            {models.length} models
-          </Badge>
+          <Badge variant="outline" className="text-green-400 border-green-400/30 text-xs gap-1"><CheckCircle2 className="h-3 w-3" />{models.length} models</Badge>
         )}
         {status === "error" && (
-          <Badge variant="outline" className="text-red-400 border-red-400/30 text-xs gap-1">
-            <AlertCircle className="h-3 w-3" />
-            {error}
-          </Badge>
+          <Badge variant="outline" className="text-red-400 border-red-400/30 text-xs gap-1"><AlertCircle className="h-3 w-3" />{error}</Badge>
         )}
       </div>
-
       {models.length > 0 && (
         <Select value={value} onValueChange={onChange}>
-          <SelectTrigger className="font-mono text-sm">
-            <SelectValue placeholder="Select a model..." />
-          </SelectTrigger>
+          <SelectTrigger className="font-mono text-sm"><SelectValue placeholder="Select a model..." /></SelectTrigger>
           <SelectContent>
             {models.map((m) => (
               <SelectItem key={m.id} value={m.id}>
                 <div className="flex flex-col">
                   <span className="font-medium">{m.name}</span>
-                  {m.description && (
-                    <span className="text-xs text-muted-foreground">{m.description}</span>
-                  )}
+                  {m.description && <span className="text-xs text-muted-foreground">{m.description}</span>}
                 </div>
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       )}
-
       {models.length === 0 && status !== "loading" && (
         <p className="text-xs text-muted-foreground">
-          {status === "idle"
-            ? `Click "Fetch Models" to load available ${provider === "gemini" ? "Gemini" : "Groq"} models`
-            : error || "No models available"}
+          {status === "idle" ? `Click "Fetch Models" to load available ${provider === "gemini" ? "Gemini" : "Groq"} models` : error || "No models available"}
         </p>
       )}
     </div>
   );
 }
 
-function SaveIndicator({ status }: { status: SaveStatus }) {
+function SaveStatusBadge({ status }: { status: SaveStatus }) {
   if (status === "idle") return null;
   return (
-    <div className={`flex items-center gap-1.5 text-xs transition-all ${
-      status === "saving" ? "text-muted-foreground" :
-      status === "saved"  ? "text-green-400" :
-      "text-red-400"
+    <span className={`flex items-center gap-1.5 text-xs font-medium transition-all px-2 py-1 rounded-md ${
+      status === "saving" ? "text-muted-foreground bg-muted/50" :
+      status === "saved"  ? "text-green-400 bg-green-400/10" :
+                            "text-red-400 bg-red-400/10"
     }`}>
-      {status === "saving" && <><CloudUpload className="h-3.5 w-3.5 animate-pulse" /> جاري الحفظ...</>}
-      {status === "saved"  && <><Cloud className="h-3.5 w-3.5" /> تم الحفظ</>}
-      {status === "error"  && <><CloudOff className="h-3.5 w-3.5" /> فشل الحفظ</>}
-    </div>
+      {status === "saving" && <><CloudUpload className="h-3.5 w-3.5 animate-pulse" />جاري الحفظ...</>}
+      {status === "saved"  && <><Cloud className="h-3.5 w-3.5" />تم الحفظ ✓</>}
+      {status === "error"  && <><CloudOff className="h-3.5 w-3.5" />فشل الحفظ</>}
+    </span>
   );
 }
 
@@ -174,25 +129,21 @@ export default function Settings() {
   const [showGroq, setShowGroq] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
+  // Refs to avoid stale closures and timing issues
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isPopulatedRef = useRef(false);
+  const isReadyRef = useRef(false);   // true once form is populated from server
+  const isSavingRef = useRef(false);  // prevent concurrent saves
 
   const clearMessagesMutation = useClearMessages({
     mutation: {
-      onSuccess: (data) => {
-        toast({ title: "✅ تم مسح الرسائل", description: data.message });
-        queryClient.invalidateQueries();
-      },
+      onSuccess: (data) => { toast({ title: "✅ تم مسح الرسائل", description: data.message }); queryClient.invalidateQueries(); },
       onError: () => toast({ title: "خطأ", description: "فشل مسح الرسائل", variant: "destructive" }),
     },
   });
 
   const clearContactsMutation = useClearContacts({
     mutation: {
-      onSuccess: (data) => {
-        toast({ title: "✅ تم مسح البيانات", description: data.message });
-        queryClient.invalidateQueries();
-      },
+      onSuccess: (data) => { toast({ title: "✅ تم مسح البيانات", description: data.message }); queryClient.invalidateQueries(); },
       onError: () => toast({ title: "خطأ", description: "فشل مسح البيانات", variant: "destructive" }),
     },
   });
@@ -202,77 +153,85 @@ export default function Settings() {
     defaultValues: {
       ownerName: "", ownerEmail: "", ownerPhone: "", adminPhone: "",
       projectName: "", projectDescription: "", projectLink: "",
-      geminiApiKey: "", geminiModel: "",
-      groqApiKey: "", groqModel: "",
+      geminiApiKey: "", geminiModel: "", groqApiKey: "", groqModel: "",
       aiModel: "gemini", agentPersonality: "", autoReply: true,
       maintenanceMode: false,
       maintenanceMessage: "⚙️ النظام في وضع الصيانة حالياً. سيعود قريباً — We'll be back soon.",
     }
   });
 
+  // Populate form once settings load from server
   useEffect(() => {
-    if (settings) {
-      isPopulatedRef.current = false;
-      form.reset({
-        ...settings,
-        ownerName: settings.ownerName || "",
-        ownerEmail: settings.ownerEmail || "",
-        ownerPhone: settings.ownerPhone || "",
-        adminPhone: (settings as any).adminPhone || "",
-        projectName: settings.projectName || "",
-        projectDescription: settings.projectDescription || "",
-        projectLink: settings.projectLink || "",
-        geminiApiKey: settings.geminiApiKey || "",
-        geminiModel: (settings as any).geminiModel || "",
-        groqApiKey: settings.groqApiKey || "",
-        groqModel: (settings as any).groqModel || "",
-        agentPersonality: settings.agentPersonality || "",
-        maintenanceMode: (settings as any).maintenanceMode ?? false,
-        maintenanceMessage: (settings as any).maintenanceMessage || "⚙️ النظام في وضع الصيانة حالياً. سيعود قريباً — We'll be back soon.",
-      });
-      // Mark as populated after a tick so the watch subscription doesn't fire
-      setTimeout(() => { isPopulatedRef.current = true; }, 100);
-    }
-  }, [settings, form]);
+    if (!settings) return;
+    isReadyRef.current = false;
+    form.reset({
+      ...settings,
+      ownerName: settings.ownerName || "",
+      ownerEmail: settings.ownerEmail || "",
+      ownerPhone: settings.ownerPhone || "",
+      adminPhone: (settings as any).adminPhone || "",
+      projectName: settings.projectName || "",
+      projectDescription: settings.projectDescription || "",
+      projectLink: settings.projectLink || "",
+      geminiApiKey: settings.geminiApiKey || "",
+      geminiModel: (settings as any).geminiModel || "",
+      groqApiKey: settings.groqApiKey || "",
+      groqModel: (settings as any).groqModel || "",
+      agentPersonality: settings.agentPersonality || "",
+      maintenanceMode: (settings as any).maintenanceMode ?? false,
+      maintenanceMessage: (settings as any).maintenanceMessage || "⚙️ النظام في وضع الصيانة حالياً. سيعود قريباً — We'll be back soon.",
+    });
+    // Allow watch to fire after form is fully populated
+    setTimeout(() => { isReadyRef.current = true; }, 300);
+  }, [settings]);
 
-  // Auto-save: watch all fields, debounce 1.5 seconds
+  // Core save function — used by both auto-save and manual button
+  const doSave = useCallback((showToast = false) => {
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
+    const data = form.getValues();
+    setSaveStatus("saving");
+
+    updateMutation.mutate({ data: data as any }, {
+      onSuccess: (newSettings) => {
+        queryClient.setQueryData(getGetSettingsQueryKey(), newSettings);
+        setSaveStatus("saved");
+        isSavingRef.current = false;
+        if (showToast) toast({ title: "✅ تم الحفظ", description: "تم حفظ الإعدادات بنجاح." });
+        setTimeout(() => setSaveStatus("idle"), 2500);
+      },
+      onError: () => {
+        setSaveStatus("error");
+        isSavingRef.current = false;
+        if (showToast) toast({ title: "خطأ", description: "فشل حفظ الإعدادات.", variant: "destructive" });
+        setTimeout(() => setSaveStatus("idle"), 3000);
+      },
+    });
+  }, [form, updateMutation, queryClient, toast]);
+
+  // Auto-save: subscribe to form changes, debounce 1.5s
+  // Using empty deps so subscription is created once; doSave ref handles freshness
+  const doSaveRef = useRef(doSave);
+  useEffect(() => { doSaveRef.current = doSave; }, [doSave]);
+
   useEffect(() => {
-    const subscription = form.watch(async () => {
-      if (!isPopulatedRef.current) return;
-
+    const { unsubscribe } = form.watch(() => {
+      if (!isReadyRef.current) return;
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-
-      saveTimerRef.current = setTimeout(async () => {
-        const isValid = await form.trigger();
-        if (!isValid) return;
-
-        const data = form.getValues();
-        setSaveStatus("saving");
-
-        updateMutation.mutate({ data: data as any }, {
-          onSuccess: (newSettings) => {
-            queryClient.setQueryData(getGetSettingsQueryKey(), newSettings);
-            setSaveStatus("saved");
-            setTimeout(() => setSaveStatus("idle"), 2500);
-          },
-          onError: () => {
-            setSaveStatus("error");
-            setTimeout(() => setSaveStatus("idle"), 3000);
-          },
-        });
+      saveTimerRef.current = setTimeout(() => {
+        doSaveRef.current(false);
       }, 1500);
     });
-
     return () => {
-      subscription.unsubscribe();
+      unsubscribe();
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [form, updateMutation, queryClient]);
+  }, []); // intentionally empty — subscription lives for component lifetime
 
   const geminiApiKey = form.watch("geminiApiKey") ?? "";
-  const groqApiKey = form.watch("groqApiKey") ?? "";
-  const geminiModel = form.watch("geminiModel") ?? "";
-  const groqModel = form.watch("groqModel") ?? "";
+  const groqApiKey   = form.watch("groqApiKey") ?? "";
+  const geminiModel  = form.watch("geminiModel") ?? "";
+  const groqModel    = form.watch("groqModel") ?? "";
 
   if (isLoading) {
     return <div className="flex justify-center p-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
@@ -280,22 +239,35 @@ export default function Settings() {
 
   return (
     <div className="space-y-5 max-w-4xl mx-auto pb-12">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight">الإعدادات</h1>
-          <p className="text-muted-foreground mt-1 text-sm">إعداد تفاصيل المشروع وسلوك الذكاء الاصطناعي.</p>
+          <p className="text-muted-foreground mt-1 text-sm">يُحفظ تلقائياً بعد 1.5 ثانية من آخر تغيير.</p>
         </div>
-        <SaveIndicator status={saveStatus} />
+        <div className="flex items-center gap-3">
+          <SaveStatusBadge status={saveStatus} />
+          <Button
+            type="button"
+            onClick={() => doSave(true)}
+            disabled={saveStatus === "saving"}
+            size="sm"
+            className="gap-1.5"
+          >
+            {saveStatus === "saving" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            حفظ
+          </Button>
+        </div>
       </div>
 
       <Form {...form}>
-        <form className="space-y-8">
+        <div className="space-y-8">
 
           {/* Owner Info */}
           <Card className="bg-card/50 backdrop-blur border-border/50">
             <CardHeader>
               <CardTitle>Owner Information</CardTitle>
-              <CardDescription>Contact details shared with managers. All fields are optional — only filled fields are shown to the AI.</CardDescription>
+              <CardDescription>Contact details shared with managers. All fields are optional.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-6 md:grid-cols-2">
               <FormField control={form.control} name="ownerName" render={({ field }) => (
@@ -326,9 +298,7 @@ export default function Settings() {
                     <Badge variant="outline" className="text-xs text-amber-400 border-amber-400/30">كيرا</Badge>
                   </div>
                   <FormControl><Input placeholder="e.g. 212612345678" {...field} /></FormControl>
-                  <FormDescription className="text-xs">
-                    This number receives system alerts and can use admin mode by sending "أنا كيرا"
-                  </FormDescription>
+                  <FormDescription className="text-xs">This number receives system alerts and can use admin mode by sending "أنا كيرا"</FormDescription>
                   <FormMessage/>
                 </FormItem>
               )} />
@@ -377,9 +347,7 @@ export default function Settings() {
                   <div>
                     <CardTitle>Maintenance Mode</CardTitle>
                     <CardDescription>
-                      {form.watch("maintenanceMode")
-                        ? "Bot is paused — only the admin can chat."
-                        : "Bot is active and responding normally."}
+                      {form.watch("maintenanceMode") ? "Bot is paused — only the admin can chat." : "Bot is active and responding normally."}
                     </CardDescription>
                   </div>
                 </div>
@@ -389,12 +357,8 @@ export default function Settings() {
                       {field.value ? "⛔ Paused" : "✅ Active"}
                     </FormLabel>
                     <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        data-testid="switch-maintenance"
-                        className={field.value ? "data-[state=checked]:bg-orange-500" : ""}
-                      />
+                      <Switch checked={field.value} onCheckedChange={field.onChange} data-testid="switch-maintenance"
+                        className={field.value ? "data-[state=checked]:bg-orange-500" : ""} />
                     </FormControl>
                   </FormItem>
                 )} />
@@ -405,9 +369,7 @@ export default function Settings() {
                 <FormItem>
                   <FormLabel>Message sent to users during maintenance</FormLabel>
                   <FormDescription>This exact text is sent to anyone who messages while the bot is paused. The admin is not affected.</FormDescription>
-                  <FormControl>
-                    <Textarea rows={2} {...field} />
-                  </FormControl>
+                  <FormControl><Textarea rows={2} {...field} /></FormControl>
                   <FormMessage/>
                 </FormItem>
               )} />
@@ -434,8 +396,6 @@ export default function Settings() {
               </div>
             </CardHeader>
             <CardContent className="grid gap-8">
-
-              {/* Active Provider */}
               <FormField control={form.control} name="aiModel" render={({ field }) => (
                 <FormItem className="max-w-xs">
                   <FormLabel>Active AI Provider</FormLabel>
@@ -450,16 +410,13 @@ export default function Settings() {
                 </FormItem>
               )} />
 
-              {/* Gemini Section */}
+              {/* Gemini */}
               <div className="rounded-lg border border-border/50 p-5 space-y-4">
                 <div className="flex items-center gap-2">
                   <div className="h-2 w-2 rounded-full bg-blue-400" />
                   <h3 className="font-semibold text-sm">Google Gemini</h3>
-                  {form.watch("aiModel") === "gemini" && (
-                    <Badge className="text-xs bg-blue-500/20 text-blue-400 border-blue-400/30">Active</Badge>
-                  )}
+                  {form.watch("aiModel") === "gemini" && <Badge className="text-xs bg-blue-500/20 text-blue-400 border-blue-400/30">Active</Badge>}
                 </div>
-
                 <FormField control={form.control} name="geminiApiKey" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Gemini API Key</FormLabel>
@@ -474,36 +431,21 @@ export default function Settings() {
                     <FormMessage/>
                   </FormItem>
                 )} />
-
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium leading-none">Gemini Model</label>
-                  <p className="text-sm text-muted-foreground">
-                    Free models only (Flash & Gemma families). Enter your API key then click Fetch Models.
-                  </p>
-                  <ModelSelector
-                    provider="gemini"
-                    apiKey={geminiApiKey}
-                    value={geminiModel}
-                    onChange={(v) => form.setValue("geminiModel", v)}
-                  />
-                  {geminiModel && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Selected: <span className="font-mono text-foreground">{geminiModel}</span>
-                    </p>
-                  )}
+                  <p className="text-sm text-muted-foreground">Free models only (Flash & Gemma families). Enter your API key then click Fetch Models.</p>
+                  <ModelSelector provider="gemini" apiKey={geminiApiKey} value={geminiModel} onChange={(v) => form.setValue("geminiModel", v, { shouldDirty: true })} />
+                  {geminiModel && <p className="text-xs text-muted-foreground mt-1">Selected: <span className="font-mono text-foreground">{geminiModel}</span></p>}
                 </div>
               </div>
 
-              {/* Groq Section */}
+              {/* Groq */}
               <div className="rounded-lg border border-border/50 p-5 space-y-4">
                 <div className="flex items-center gap-2">
                   <div className="h-2 w-2 rounded-full bg-orange-400" />
                   <h3 className="font-semibold text-sm">Groq</h3>
-                  {form.watch("aiModel") === "groq" && (
-                    <Badge className="text-xs bg-orange-500/20 text-orange-400 border-orange-400/30">Active</Badge>
-                  )}
+                  {form.watch("aiModel") === "groq" && <Badge className="text-xs bg-orange-500/20 text-orange-400 border-orange-400/30">Active</Badge>}
                 </div>
-
                 <FormField control={form.control} name="groqApiKey" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Groq API Key</FormLabel>
@@ -518,23 +460,11 @@ export default function Settings() {
                     <FormMessage/>
                   </FormItem>
                 )} />
-
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium leading-none">Groq Model</label>
-                  <p className="text-sm text-muted-foreground">
-                    Free Llama, Mixtral & Gemma models. Enter your API key then click Fetch Models.
-                  </p>
-                  <ModelSelector
-                    provider="groq"
-                    apiKey={groqApiKey}
-                    value={groqModel}
-                    onChange={(v) => form.setValue("groqModel", v)}
-                  />
-                  {groqModel && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Selected: <span className="font-mono text-foreground">{groqModel}</span>
-                    </p>
-                  )}
+                  <p className="text-sm text-muted-foreground">Free Llama, Mixtral & Gemma models. Enter your API key then click Fetch Models.</p>
+                  <ModelSelector provider="groq" apiKey={groqApiKey} value={groqModel} onChange={(v) => form.setValue("groqModel", v, { shouldDirty: true })} />
+                  {groqModel && <p className="text-xs text-muted-foreground mt-1">Selected: <span className="font-mono text-foreground">{groqModel}</span></p>}
                 </div>
               </div>
 
@@ -548,80 +478,64 @@ export default function Settings() {
                 </FormItem>
               )} />
             </CardContent>
-            <CardFooter className="bg-muted/10 border-t border-border/50 pt-4">
-              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <Cloud className="h-3.5 w-3.5" />
-                يُحفظ تلقائياً بعد 1.5 ثانية من آخر تغيير
+            <CardFooter className="bg-muted/10 border-t border-border/50 pt-4 flex items-center justify-between gap-4 flex-wrap">
+              <p className="text-xs text-muted-foreground">
+                يُحفظ تلقائياً بعد 1.5 ثانية من آخر تغيير — أو اضغط <strong>حفظ</strong> فوراً.
               </p>
+              <Button type="button" onClick={() => doSave(true)} disabled={saveStatus === "saving"} size="sm" className="gap-1.5">
+                {saveStatus === "saving" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                حفظ الآن
+              </Button>
             </CardFooter>
           </Card>
 
-        </form>
+        </div>
       </Form>
 
-      {/* ─── Data Management Card (outside Form) ─────────────────── */}
+      {/* Data Management */}
       <Card className="border-destructive/40">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-destructive">
-            <Trash2 className="h-5 w-5" />
-            إدارة البيانات
+            <Trash2 className="h-5 w-5" />إدارة البيانات
           </CardTitle>
-          <CardDescription>
-            حذف البيانات المخزنة — لا يمكن التراجع عن هذه الإجراءات.
-          </CardDescription>
+          <CardDescription>حذف البيانات المخزنة — لا يمكن التراجع عن هذه الإجراءات.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col sm:flex-row gap-3">
-          {/* Clear Messages */}
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 gap-2">
-                <MessageSquareOff className="h-4 w-4" />
-                مسح كل الرسائل
+                <MessageSquareOff className="h-4 w-4" />مسح كل الرسائل
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>تأكيد مسح الرسائل</AlertDialogTitle>
-                <AlertDialogDescription>
-                  سيتم حذف كل سجلات المحادثات من قاعدة البيانات. لن تتأثر جهات الاتصال. هذا الإجراء لا يمكن التراجع عنه.
-                </AlertDialogDescription>
+                <AlertDialogDescription>سيتم حذف كل سجلات المحادثات من قاعدة البيانات. لن تتأثر جهات الاتصال. هذا الإجراء لا يمكن التراجع عنه.</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>إلغاء</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => clearMessagesMutation.mutate({})}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
-                  {clearMessagesMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  مسح الرسائل
+                <AlertDialogAction onClick={() => clearMessagesMutation.mutate({})} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  {clearMessagesMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}مسح الرسائل
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
 
-          {/* Clear Contacts */}
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 gap-2">
-                <UsersRound className="h-4 w-4" />
-                مسح جهات الاتصال والرسائل
+                <UsersRound className="h-4 w-4" />مسح جهات الاتصال والرسائل
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>تأكيد مسح جهات الاتصال</AlertDialogTitle>
-                <AlertDialogDescription>
-                  سيتم حذف كل جهات الاتصال وجميع الرسائل المرتبطة بها. هذا الإجراء لا يمكن التراجع عنه.
-                </AlertDialogDescription>
+                <AlertDialogDescription>سيتم حذف كل جهات الاتصال وجميع الرسائل المرتبطة بها. هذا الإجراء لا يمكن التراجع عنه.</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>إلغاء</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => clearContactsMutation.mutate({})}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
-                  {clearContactsMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  مسح الكل
+                <AlertDialogAction onClick={() => clearContactsMutation.mutate({})} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  {clearContactsMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}مسح الكل
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
