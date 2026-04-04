@@ -380,12 +380,12 @@ export async function connectWhatsApp() {
         // ─── Blocked contacts ─────────────────────────────────────────
         if (contact.isBlocked) continue;
 
-        await saveMessage(contact.id, text, "inbound");
         logger.info({ phone, text: text.slice(0, 50) }, "Inbound message");
 
         // ─── Maintenance mode ─────────────────────────────────────────
         const maintenanceMode = (await getSetting("maintenanceMode")) === "true";
         if (maintenanceMode) {
+          await saveMessage(contact.id, text, "inbound");
           const maintenanceMsg =
             (await getSetting("maintenanceMessage")) ??
             "⚙️ النظام في وضع الصيانة حالياً. سيعود قريباً — We'll be back soon.";
@@ -397,11 +397,21 @@ export async function connectWhatsApp() {
         // ─── Auto-reply via AI ────────────────────────────────────────
         const autoReply = (await getSetting("autoReply")) ?? "true";
         if (autoReply === "true") {
-          const recentMsgs = await getRecentMessages(contact.id, 10);
-          const history = recentMsgs.slice(-9).map((m) => ({
+          // Fetch history BEFORE saving the current message to avoid duplication
+          const previousMsgs = await getRecentMessages(contact.id, 12);
+
+          // Build history pairs and ensure it starts with 'user' (Gemini requirement)
+          let history = previousMsgs.map((m) => ({
             role: m.direction === "inbound" ? ("user" as const) : ("assistant" as const),
             content: m.content,
           }));
+          while (history.length > 0 && history[0].role !== "user") {
+            history = history.slice(1);
+          }
+          history = history.slice(-10); // keep last 10 turns max
+
+          // Now save the current inbound message
+          await saveMessage(contact.id, text, "inbound");
 
           try {
             const { reply, model } = await generateAIReply(text, history);
@@ -418,6 +428,8 @@ export async function connectWhatsApp() {
             .update(contactsTable)
             .set({ lastSeen: new Date() })
             .where(eq(contactsTable.id, contact.id));
+        } else {
+          await saveMessage(contact.id, text, "inbound");
         }
       }
     });
