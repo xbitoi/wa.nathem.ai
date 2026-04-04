@@ -794,8 +794,8 @@ export async function connectWhatsApp() {
         }
         // ─────────────────────────────────────────────────────────────
 
-        // Fetch last 2 messages only to keep context short and focused
-        const previousMsgs = await getRecentMessages(contact.id, 2);
+        // Fetch last 6 messages for richer conversation context
+        const previousMsgs = await getRecentMessages(contact.id, 6);
 
         let history = previousMsgs.map((m) => ({
           role: m.direction === "inbound" ? ("user" as const) : ("assistant" as const),
