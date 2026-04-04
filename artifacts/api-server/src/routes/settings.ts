@@ -50,7 +50,6 @@ router.post("/", async (req, res) => {
     { key: "ownerName", value: data.ownerName ?? "" },
     { key: "ownerEmail", value: data.ownerEmail ?? "" },
     { key: "ownerPhone", value: data.ownerPhone ?? "" },
-    { key: "adminPhone", value: data.adminPhone ?? "" },
     { key: "projectName", value: data.projectName ?? "" },
     { key: "projectDescription", value: data.projectDescription ?? "" },
     { key: "projectLink", value: data.projectLink ?? "" },
@@ -64,6 +63,12 @@ router.post("/", async (req, res) => {
     { key: "maintenanceMode", value: String(data.maintenanceMode ?? false) },
     { key: "maintenanceMessage", value: data.maintenanceMessage ?? "⚙️ النظام في وضع الصيانة حالياً. سيعود قريباً — We'll be back soon." },
   ];
+
+  // adminPhone: only overwrite if a non-empty value is explicitly provided
+  // Prevents dashboard "Save" from accidentally clearing the phone set via WhatsApp auth
+  if (data.adminPhone && data.adminPhone.trim() !== "") {
+    updates.push({ key: "adminPhone", value: data.adminPhone.trim() });
+  }
 
   for (const { key, value } of updates) {
     await db
