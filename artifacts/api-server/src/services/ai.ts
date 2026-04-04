@@ -41,7 +41,13 @@ const NOUR_STYLE = `
 -- Style & Identite / الشخصية --
 
 Tu es Nour. You are Nour. أنت نور.
-Lست مجرد بوت يجيب على أسئلة — أنت واجهة ذكية وودية للمشروع، تفهم السياق وتقرأ ما بين السطور.
+لست مجرد بوت يجيب على أسئلة — أنت واجهة ذكية وودية للمشروع، تفهم السياق وتقرأ ما بين السطور.
+
+عند الترحيب (أهلاً / سلام / hi / hello / bonjour وما شابهها):
+- لا تقل أبداً "كيف يمكنني مساعدتك؟" — هذه جملة آلية باردة.
+- بدلاً من ذلك: رحّب بلطف وعرّف بنفسك وبالمشروع في جملتين أو ثلاث بشكل محادثاتي طبيعي.
+- مثال: "أهلاً! أنا نور، الوكيل الذكي لمشروع Yazaki AI. المشروع يحوّل صور جداول الأسلاك الكهربائية إلى بيانات رقمية فورية داخل المصنع — توفير في الوقت وصفر أخطاء بشرية. شو يهمك تعرف أكثر؟"
+- غيّر الأسلوب مع كل محادثة، لا تكرر نفس الجملة دائماً.
 
 مبادئ التواصل:
 - الذكاء السياقي: اقرأ المحادثة كاملاً قبل الرد. افهم الإشارات الضمنية والسياق.
@@ -49,6 +55,7 @@ Lست مجرد بوت يجيب على أسئلة — أنت واجهة ذكية 
 - الاختصار عند الحاجة: سؤال بسيط = رد بسيط. لا تطوّل بلا سبب.
 - التفصيل عند الحاجة: سؤال تقني أو مهم = اشرح بوضوح وأناقة.
 - لا تكرر ما قلته في نفس المحادثة ما لم يُطلب منك.
+- لا ترسل أي نص بين <think> و </think> — هذا تفكير داخلي يجب أن يبقى مخفياً تماماً.
 
 اللغة - Language:
 - ترد باللغة التي يكتب بها المستخدم تماماً وبشكل تلقائي
@@ -62,6 +69,14 @@ Lست مجرد بوت يجيب على أسئلة — أنت واجهة ذكية 
 - إذا سُئلت عن شيء لا تعرفه، اعترف بلطف واقترح التواصل المباشر
 - لا تتحدث عن أسعار أو عروض ما لم تُعطَ هذه المعلومات
 `;
+
+// Strip chain-of-thought <think>...</think> blocks that some models output
+function stripThinking(text: string): string {
+  return text
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/^\s+/, "")
+    .trim();
+}
 
 export async function generateAIReply(
   userMessage: string,
@@ -121,8 +136,10 @@ export async function generateAIReply(
       max_tokens: 1200,
       temperature: 0.75,
     });
-    const reply = completion.choices[0]?.message?.content;
-    if (!reply) throw new Error("GROQ_EMPTY_REPLY: الرد من Groq كان فارغاً");
+    const rawReply = completion.choices[0]?.message?.content;
+    if (!rawReply) throw new Error("GROQ_EMPTY_REPLY: الرد من Groq كان فارغاً");
+    const reply = stripThinking(rawReply);
+    if (!reply) throw new Error("GROQ_EMPTY_AFTER_STRIP: الرد بعد حذف التفكير كان فارغاً");
     return { reply, model: `groq/${groqModel}` };
 
   } else {
@@ -139,7 +156,7 @@ export async function generateAIReply(
     }));
     const chat = gModel.startChat({ history, systemInstruction: systemPrompt });
     const result = await chat.sendMessage(userMessage);
-    const reply = result.response.text();
+    const reply = stripThinking(result.response.text());
     if (!reply) throw new Error("GEMINI_EMPTY_REPLY: الرد من Gemini كان فارغاً");
     return { reply, model: `gemini/${geminiModel}` };
   }
