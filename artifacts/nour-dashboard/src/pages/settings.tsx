@@ -11,7 +11,8 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Eye, EyeOff, RefreshCw, CheckCircle2, AlertCircle, Trash2, MessageSquareOff, UsersRound, Save, CloudUpload, Cloud, CloudOff, RotateCcw } from "lucide-react";
+import { Loader2, Eye, EyeOff, RefreshCw, CheckCircle2, AlertCircle, Trash2, MessageSquareOff, UsersRound, Save, CloudUpload, Cloud, CloudOff, RotateCcw, Upload, Video, X } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -24,7 +25,7 @@ const settingsSchema = z.object({
   projectName: z.string().optional(),
   projectDescription: z.string().optional(),
   projectLink: z.union([z.string().url("Must be a valid URL"), z.literal("")]).optional(),
-  demoVideoUrl: z.union([z.string().url("Must be a valid URL"), z.literal("")]).optional(),
+  demoVideoUrl: z.string().optional(),
   geminiApiKey: z.string().optional(),
   geminiModel: z.string().optional(),
   groqApiKey: z.string().optional(),
@@ -37,6 +38,120 @@ const settingsSchema = z.object({
 });
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
+
+// ── Video Uploader Component ──────────────────────────────────────────────────
+function VideoUploader({ value, onChange }: { value: string; onChange: (url: string) => void }) {
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [fileName, setFileName] = useState("");
+  const { toast } = useToast();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFile(file: File) {
+    if (!file.type.startsWith("video/")) {
+      toast({ title: "خطأ", description: "يُقبل ملفات الفيديو فقط", variant: "destructive" });
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      toast({ title: "خطأ", description: "حجم الفيديو يجب أن يكون أقل من 50 ميجابايت", variant: "destructive" });
+      return;
+    }
+
+    setUploading(true);
+    setProgress(10);
+    setFileName(file.name);
+
+    try {
+      // Step 1: Get presigned URL
+      const metaRes = await fetch("/api/storage/uploads/request-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+      });
+      if (!metaRes.ok) throw new Error("فشل في الحصول على رابط الرفع");
+      const { uploadURL, objectPath } = await metaRes.json();
+      setProgress(30);
+
+      // Step 2: Upload directly to GCS
+      const xhr = new XMLHttpRequest();
+      await new Promise<void>((resolve, reject) => {
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) setProgress(30 + Math.round((e.loaded / e.total) * 60));
+        };
+        xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload failed: ${xhr.status}`));
+        xhr.onerror = () => reject(new Error("Network error during upload"));
+        xhr.open("PUT", uploadURL);
+        xhr.setRequestHeader("Content-Type", file.type);
+        xhr.send(file);
+      });
+      setProgress(95);
+
+      // Step 3: Construct serving URL
+      const servingUrl = `${window.location.origin}/api/storage${objectPath}`;
+      onChange(servingUrl);
+      setProgress(100);
+      toast({ title: "✅ تم رفع الفيديو", description: "ناظم سيرسله لمن يطلبه" });
+    } catch (err: any) {
+      toast({ title: "خطأ في الرفع", description: err?.message ?? "حاول مجدداً", variant: "destructive" });
+      setFileName("");
+    } finally {
+      setUploading(false);
+      setTimeout(() => setProgress(0), 1500);
+    }
+  }
+
+  const isUploaded = Boolean(value);
+  const displayName = fileName || (isUploaded ? value.split("/").pop() ?? "فيديو مرفوع" : "");
+
+  return (
+    <div className="space-y-3">
+      <input
+        ref={inputRef}
+        type="file"
+        accept="video/*"
+        className="hidden"
+        onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+      />
+
+      {isUploaded ? (
+        <div className="flex items-center gap-3 p-3 rounded-lg border border-green-500/30 bg-green-500/5">
+          <Video className="h-5 w-5 text-green-500 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-green-600">✅ فيديو مرفوع وجاهز للإرسال</p>
+            <p className="text-xs text-muted-foreground truncate">{displayName}</p>
+          </div>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()} disabled={uploading}>
+              <Upload className="h-3 w-3 mr-1" /> استبدال
+            </Button>
+            <Button type="button" variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => { onChange(""); setFileName(""); }} disabled={uploading}>
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div
+          className="flex flex-col items-center justify-center gap-2 p-6 rounded-lg border-2 border-dashed border-border/60 hover:border-primary/40 cursor-pointer transition-colors"
+          onClick={() => !uploading && inputRef.current?.click()}
+        >
+          {uploading ? (
+            <Loader2 className="h-8 w-8 text-primary animate-spin" />
+          ) : (
+            <Video className="h-8 w-8 text-muted-foreground" />
+          )}
+          <p className="text-sm text-muted-foreground text-center">
+            {uploading ? `جاري الرفع... ${fileName}` : "اضغط لاختيار فيديو من جهازك"}
+          </p>
+          <p className="text-xs text-muted-foreground/60">MP4، MOV — حتى 50 ميجابايت</p>
+        </div>
+      )}
+
+      {uploading && progress > 0 && (
+        <Progress value={progress} className="h-1.5" />
+      )}
+    </div>
+  );
+}
 
 interface ModelOption { id: string; name: string; description: string; }
 type FetchStatus = "idle" | "loading" | "success" | "error";
@@ -354,16 +469,15 @@ export default function Settings() {
               <FormField control={form.control} name="demoVideoUrl" render={({ field }) => (
                 <FormItem>
                   <FormLabel className="flex items-center gap-2">
-                    🎥 Demo Video URL
-                    <span className="text-muted-foreground text-xs font-normal">(optional — sent to users on request)</span>
+                    <Video className="h-4 w-4" />
+                    فيديو شرح التطبيق
+                    <span className="text-muted-foreground text-xs font-normal">(اختياري)</span>
                   </FormLabel>
                   <FormControl>
-                    <Input type="url" placeholder="https://youtube.com/... or direct .mp4 link" {...field} />
+                    <VideoUploader value={field.value ?? ""} onChange={field.onChange} />
                   </FormControl>
                   <FormDescription className="text-xs">
-                    {field.value
-                      ? `✅ فيديو مرفوع — ناظم سيقترحه ويرسله عند الطلب`
-                      : "الصق رابط يوتيوب أو رابط ملف .mp4 مباشر — سيُرسله ناظم لمن يطلبه"}
+                    ارفع فيديو من جهازك — ناظم سيقترحه ويرسله لمن يطلبه في واتساب
                   </FormDescription>
                   <FormMessage/>
                 </FormItem>

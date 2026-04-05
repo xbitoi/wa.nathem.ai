@@ -208,7 +208,6 @@ export const GetSettingsResponse = zod.object({
   projectName: zod.string().optional(),
   projectDescription: zod.string().optional(),
   projectLink: zod.string().optional(),
-  demoVideoUrl: zod.string().optional(),
   geminiApiKey: zod.string().optional(),
   geminiModel: zod.string().optional(),
   groqApiKey: zod.string().optional(),
@@ -231,7 +230,6 @@ export const UpdateSettingsBody = zod.object({
   projectName: zod.string().optional(),
   projectDescription: zod.string().optional(),
   projectLink: zod.string().optional(),
-  demoVideoUrl: zod.string().optional(),
   geminiApiKey: zod.string().optional(),
   geminiModel: zod.string().optional(),
   groqApiKey: zod.string().optional(),
@@ -307,6 +305,28 @@ export const GetStatsResponse = zod.object({
   blockedContacts: zod.number(),
   todayMessages: zod.number(),
   activeContacts: zod.number(),
+});
+
+/**
+ * @summary Request a presigned URL for file upload
+ */
+
+export const RequestUploadUrlBody = zod.object({
+  name: zod.string().min(1),
+  size: zod.number().min(1),
+  contentType: zod.string().min(1),
+});
+
+export const RequestUploadUrlResponse = zod.object({
+  uploadURL: zod.string().url(),
+  objectPath: zod.string(),
+});
+
+/**
+ * @summary Serve an object entity
+ */
+export const GetStorageObjectParams = zod.object({
+  objectPath: zod.coerce.string(),
 });
 
 /**

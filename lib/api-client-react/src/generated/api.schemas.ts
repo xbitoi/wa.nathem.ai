@@ -130,7 +130,6 @@ export interface Settings {
   projectName?: string;
   projectDescription?: string;
   projectLink?: string;
-  demoVideoUrl?: string;
   geminiApiKey?: string;
   geminiModel?: string;
   groqApiKey?: string;
@@ -156,6 +155,24 @@ export interface ActivityPoint {
   date: string;
   inbound: number;
   outbound: number;
+}
+
+export interface UploadUrlRequest {
+  /** @minLength 1 */
+  name: string;
+  /** @minimum 1 */
+  size: number;
+  /** @minLength 1 */
+  contentType: string;
+}
+
+export interface UploadUrlResponse {
+  uploadURL: string;
+  objectPath: string;
+}
+
+export interface ErrorEnvelope {
+  error: string;
 }
 
 export interface ClearDataResponse {
