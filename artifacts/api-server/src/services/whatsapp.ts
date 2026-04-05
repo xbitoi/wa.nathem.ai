@@ -843,59 +843,11 @@ export async function connectWhatsApp() {
             if (fwdState.step === "ask_name") {
               fwdState.name = userName;
 
-              if (fwdState.mode === "contact") {
-                // ── Contact mode: notify admin right away ──
-                const { label: senderLabel, replyCmd } = buildContactLabel(userName, contact.phone, pushName, isLidJid);
-
-                const convoHistory = await getRecentMessages(contact.id, 6);
-                const contextLines = convoHistory
-                  .filter(m => m.content.trim() !== userName.trim())
-                  .slice(-4)
-                  .map(m => `${m.direction === "inbound" ? "👤" : "🤖"} ${m.content.slice(0, 100)}${m.content.length > 100 ? "…" : ""}`)
-                  .join("\n");
-                const contextSection = contextLines
-                  ? `\n\n📝 *سياق المحادثة:*\n${contextLines}`
-                  : "";
-
-                const adminMsg =
-                  `📞 *طلب تواصل عبر ناظم*\n\n` +
-                  `👤 ${senderLabel}\n\n` +
-                  `💬 يريد التواصل مع صاحب المشروع.` +
-                  contextSection;
-
-                logger.info({ from: contact.phone, name: userName }, "Attempting contact notification to admin");
-                const sent = await sendToAdminJid(adminMsg);
-                if (sent) await sendToAdminJid(replyCmd);
-                logger.info({ sent }, "Admin contact notification result");
-
-                pendingForwards.delete(phone);
-
-                // Build confirmation — fetch contact info to include in reply
-                const cOwnerPhone = await getSetting("ownerPhone");
-                const cOwnerEmail = await getSetting("ownerEmail");
-                const contactDetails: string[] = [];
-                if (cOwnerPhone) contactDetails.push(`📱 واتساب: ${cOwnerPhone}`);
-                if (cOwnerEmail) contactDetails.push(`📧 إيميل: ${cOwnerEmail}`);
-                const detailsLine = contactDetails.length > 0
-                  ? `\n\nيمكنك أيضاً التواصل مباشرةً:\n${contactDetails.join("\n")}`
-                  : "";
-
-                const confirmMsg = sent
-                  ? `✅ تمّ إبلاغ صاحب المشروع باسمك يا *${userName}* — سيتواصل معك قريباً إن شاء الله 🤝${detailsLine}`
-                  : `⚠️ حدث خطأ تقني في الإرسال.${detailsLine || "\nيمكنك المحاولة مجدداً لاحقاً."}`;
-
-                logger.info({ jid, confirmMsg: confirmMsg.slice(0, 60) }, "Sending confirmation to visitor");
-                await sock.sendMessage(jid, { text: confirmMsg });
-                logger.info("Visitor confirmation sent ✅");
-                await saveMessage(contact.id, confirmMsg, "outbound", "system/contact");
-
-              } else {
-                // ── Forward mode: ask for message next ──
-                fwdState.step = "ask_msg";
-                const askMsg = `بارك الله فيك *${userName}* 🤝\nاكتب رسالتك وسأوصّلها لصاحب المشروع مباشرةً 📩`;
-                await sock.sendMessage(jid, { text: askMsg });
-                await saveMessage(contact.id, askMsg, "outbound", "system/forward");
-              }
+                // Both modes now ask for message after name
+              fwdState.step = "ask_msg";
+              const askMsg = `بارك الله فيك *${userName}* 🤝\nاكتب رسالتك أو ما تريد إيصاله لصاحب المشروع وسأحيله إليه فوراً 📩`;
+              await sock.sendMessage(jid, { text: askMsg });
+              await saveMessage(contact.id, askMsg, "outbound", "system/contact");
               return;
             }
 
@@ -913,10 +865,12 @@ export async function connectWhatsApp() {
                 ? `\n\n📝 *سياق المحادثة:*\n${contextLines}`
                 : "";
 
+              const isContactMode = fwdState.mode === "contact";
               const adminMsg =
-                `📩 *رسالة من زائر عبر ناظم*\n\n` +
-                `👤 ${senderLabel}\n\n` +
-                `💬 الرسالة:\n"${msgContent}"` +
+                `${isContactMode ? "📞" : "📩"} *${isContactMode ? "طلب تواصل عبر ناظم" : "رسالة من زائر عبر ناظم"}*\n\n` +
+                `👤 *الاسم:* ${fwdState.name ?? "غير محدد"}\n` +
+                `📱 *الرقم:* +${contact.phone}\n\n` +
+                `💬 *الرسالة:*\n"${msgContent}"` +
                 contextSection;
 
               logger.info({ from: contact.phone, name: fwdState.name }, "Attempting to forward visitor message to admin");

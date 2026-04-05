@@ -99,15 +99,15 @@ function buildSystemPrompt(params: {
   const publicLink = projectLink ?? "";
 
   // Slogan strategy:
-  // - First message from a new number → always embed the MAIN_SLOGAN
-  // - All other messages → ~25% random chance to weave in a random slogan
+  // - First message → MAIN_SLOGAN (mandatory)
+  // - Every other message → a random slogan from the list (mandatory, contextually woven in)
   const isFirstEver = messageCount === 0 && !isReturningUser;
   let sloganInstruction = "";
   if (isFirstEver) {
-    sloganInstruction = `• ⚡ تعليمة إلزامية لهذا الرد فقط: يجب أن تذكر الشعار التالي مدمجاً بشكل طبيعي في كلامك — لا تقتبسه كعنوان منفصل، بل اجعله جزءاً من جملة حقيقية: "${MAIN_SLOGAN}"`;
-  } else if (Math.random() < 0.28) {
+    sloganInstruction = `• ⚡ تعليمة إلزامية: اذكر الشعار التالي مدمجاً بشكل طبيعي في كلامك — لا تقتبسه كعنوان منفصل، بل اجعله جزءاً من جملة حقيقية: "${MAIN_SLOGAN}"`;
+  } else {
     const randomSlogan = SLOGANS[Math.floor(Math.random() * SLOGANS.length)];
-    sloganInstruction = `• ⚡ تعليمة لهذا الرد: اذكر هذا الشعار مدمجاً في جملة طبيعية من ردك — ليس مقتبساً، بل كأنه جزء من حديثك: "${randomSlogan}"`;
+    sloganInstruction = `• ⚡ تعليمة إلزامية لهذا الرد: اذكر هذا الشعار مدمجاً في جملة طبيعية من ردك — ليس كاقتباس منفصل، بل كجزء حقيقي من كلامك يناسب سياق الإجابة: "${randomSlogan}"`;
   }
 
   const demoSection = `${publicLink ? `🔗 رابط التطبيق: ${publicLink}\n` : ""}بيانات الدخول التجريبية:
