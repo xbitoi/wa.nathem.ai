@@ -27,6 +27,11 @@ const settingsSchema = z.object({
   projectLink: z.union([z.string().url("Must be a valid URL"), z.literal("")]).optional(),
   demoVideoUrl: z.string().optional(),
   geminiApiKey: z.string().optional(),
+  geminiApiKey2: z.string().optional(),
+  geminiApiKey3: z.string().optional(),
+  geminiApiKey4: z.string().optional(),
+  geminiApiKey5: z.string().optional(),
+  geminiApiKey6: z.string().optional(),
   geminiModel: z.string().optional(),
   groqApiKey: z.string().optional(),
   groqModel: z.string().optional(),
@@ -241,8 +246,9 @@ export default function Settings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [showGemini, setShowGemini] = useState(false);
+  const [showGeminiKeys, setShowGeminiKeys] = useState([false, false, false, false, false, false]);
   const [showGroq, setShowGroq] = useState(false);
+  const toggleGeminiKey = (i: number) => setShowGeminiKeys(prev => prev.map((v, idx) => idx === i ? !v : v));
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   // Refs to avoid stale closures and timing issues
@@ -276,7 +282,9 @@ export default function Settings() {
       form.reset({
         ownerName: "", ownerEmail: "", ownerPhone: "", adminPhone: "",
         projectName: "", projectDescription: "", projectLink: "", demoVideoUrl: "",
-        geminiApiKey: "", geminiModel: "", groqApiKey: "", groqModel: "",
+        geminiApiKey: "", geminiApiKey2: "", geminiApiKey3: "",
+        geminiApiKey4: "", geminiApiKey5: "", geminiApiKey6: "",
+        geminiModel: "", groqApiKey: "", groqModel: "",
         aiModel: "gemini", agentPersonality: "", autoReply: true,
         maintenanceMode: false,
         maintenanceMessage: "⚙️ النظام في وضع الصيانة حالياً. سيعود قريباً — We'll be back soon.",
@@ -290,7 +298,9 @@ export default function Settings() {
     defaultValues: {
       ownerName: "", ownerEmail: "", ownerPhone: "", adminPhone: "",
       projectName: "", projectDescription: "", projectLink: "", demoVideoUrl: "",
-      geminiApiKey: "", geminiModel: "", groqApiKey: "", groqModel: "",
+      geminiApiKey: "", geminiApiKey2: "", geminiApiKey3: "",
+      geminiApiKey4: "", geminiApiKey5: "", geminiApiKey6: "",
+      geminiModel: "", groqApiKey: "", groqModel: "",
       aiModel: "gemini", agentPersonality: "", autoReply: true,
       maintenanceMode: false,
       maintenanceMessage: "⚙️ النظام في وضع الصيانة حالياً. سيعود قريباً — We'll be back soon.",
@@ -311,7 +321,12 @@ export default function Settings() {
       projectDescription: settings.projectDescription || "",
       projectLink: settings.projectLink || "",
       demoVideoUrl: (settings as any).demoVideoUrl || "",
-      geminiApiKey: settings.geminiApiKey || "",
+      geminiApiKey:  settings.geminiApiKey  || "",
+      geminiApiKey2: (settings as any).geminiApiKey2 || "",
+      geminiApiKey3: (settings as any).geminiApiKey3 || "",
+      geminiApiKey4: (settings as any).geminiApiKey4 || "",
+      geminiApiKey5: (settings as any).geminiApiKey5 || "",
+      geminiApiKey6: (settings as any).geminiApiKey6 || "",
       geminiModel: (settings as any).geminiModel || "",
       groqApiKey: settings.groqApiKey || "",
       groqModel: (settings as any).groqModel || "",
@@ -571,20 +586,23 @@ export default function Settings() {
                   <h3 className="font-semibold text-sm">Google Gemini</h3>
                   {form.watch("aiModel") === "gemini" && <Badge className="text-xs bg-blue-500/20 text-blue-400 border-blue-400/30">Active</Badge>}
                 </div>
-                <FormField control={form.control} name="geminiApiKey" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Gemini API Key</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <Input type={showGemini ? "text" : "password"} {...field} className="pr-10 font-mono text-sm" placeholder="AIza..." />
-                        <button type="button" onClick={() => setShowGemini(!showGemini)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                          {showGemini ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                      </div>
-                    </FormControl>
-                    <FormMessage/>
-                  </FormItem>
-                )} />
+                <p className="text-xs text-muted-foreground">يمكنك إضافة حتى 6 مفاتيح — عند نفاذ رصيد أحدها ينتقل تلقائياً للتالي.</p>
+                {(["geminiApiKey","geminiApiKey2","geminiApiKey3","geminiApiKey4","geminiApiKey5","geminiApiKey6"] as const).map((name, i) => (
+                  <FormField key={name} control={form.control} name={name} render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">مفتاح {i + 1}{i === 0 ? " (رئيسي)" : ""}</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Input type={showGeminiKeys[i] ? "text" : "password"} {...field} className="pr-10 font-mono text-sm" placeholder="AIza..." />
+                          <button type="button" onClick={() => toggleGeminiKey(i)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                            {showGeminiKeys[i] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      </FormControl>
+                      <FormMessage/>
+                    </FormItem>
+                  )} />
+                ))}
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium leading-none">Gemini Model</label>
                   <p className="text-sm text-muted-foreground">Free models only (Flash & Gemma families). Enter your API key then click Fetch Models.</p>

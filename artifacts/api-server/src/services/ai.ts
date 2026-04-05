@@ -460,6 +460,11 @@ export async function generateAIReply(
   const demoVideoUrl   = s["demoVideoUrl"];
   const agentPersonality = s["agentPersonality"];
   const geminiApiKey   = s["geminiApiKey"];
+  const geminiApiKey2  = s["geminiApiKey2"];
+  const geminiApiKey3  = s["geminiApiKey3"];
+  const geminiApiKey4  = s["geminiApiKey4"];
+  const geminiApiKey5  = s["geminiApiKey5"];
+  const geminiApiKey6  = s["geminiApiKey6"];
   const groqApiKey     = s["groqApiKey"];
 
   const _aiModel      = aiModel    ?? "gemini";
@@ -471,7 +476,13 @@ export async function generateAIReply(
   const _projectLink  = projectLink ?? "";
   const _demoVideoUrl = demoVideoUrl ?? "";
   const _personality  = agentPersonality ?? "";
-  const _geminiKey    = geminiApiKey ?? "";
+
+  // Collect all non-empty Gemini keys in order
+  const _geminiKeys = [
+    geminiApiKey, geminiApiKey2, geminiApiKey3,
+    geminiApiKey4, geminiApiKey5, geminiApiKey6,
+  ].map(k => (k ?? "").trim()).filter(Boolean);
+
   const _groqKey      = groqApiKey   ?? "";
 
   const systemPrompt = buildSystemPrompt({
@@ -485,51 +496,58 @@ export async function generateAIReply(
     messageCount,
   });
 
-  // Build ordered provider chain starting from the configured primary provider
-  const geminiChain = { provider: "gemini", apiKey: _geminiKey, models: buildModelChain(_geminiModel, GEMINI_MODELS) };
-  const groqChain   = { provider: "groq",   apiKey: _groqKey,   models: buildModelChain(_groqModel,   GROQ_MODELS)   };
+  // Build ordered provider chain — Gemini supports up to 6 keys, each with full model fallback
+  const geminiChains = _geminiKeys.map((apiKey, i) => ({
+    provider: "gemini",
+    label: `gemini_${i + 1}`,
+    apiKey,
+    models: buildModelChain(_geminiModel, GEMINI_MODELS),
+  }));
+  const groqChain = {
+    provider: "groq",
+    label: "groq",
+    apiKey: _groqKey,
+    models: buildModelChain(_groqModel, GROQ_MODELS),
+  };
+
   const providerChain = _aiModel === "groq"
-    ? [groqChain, geminiChain]
-    : [geminiChain, groqChain];
+    ? [groqChain, ...geminiChains]
+    : [...geminiChains, groqChain];
 
   const errors: string[] = [];
 
-  for (const { provider, apiKey, models } of providerChain) {
+  for (const { provider, label, apiKey, models } of providerChain) {
     if (!apiKey) {
-      errors.push(`${provider}: no API key`);
+      errors.push(`${label}: no API key`);
       continue;
     }
     for (const model of models) {
-      // Skip models that recently failed (circuit breaker)
-      if (isModelCoolingDown(provider, model)) {
-        errors.push(`${provider}/${model}: skipped (cooling down)`);
+      // Circuit breaker: keyed by label (includes key index) + model
+      if (isModelCoolingDown(label, model)) {
+        errors.push(`${label}/${model}: skipped (cooling down)`);
         continue;
       }
       try {
         let reply: string;
-        const label = `${provider}/${model}`;
+        const logLabel = `${label}/${model}`;
         if (provider === "gemini") {
           reply = await withTimeout(
             tryGemini(apiKey, model, systemPrompt, userMessage, conversationHistory),
-            AI_TIMEOUT_MS, label
+            AI_TIMEOUT_MS, logLabel
           );
         } else {
           reply = await withTimeout(
             tryGroq(apiKey, model, systemPrompt, userMessage, conversationHistory),
-            AI_TIMEOUT_MS, label
+            AI_TIMEOUT_MS, logLabel
           );
         }
-        if (model !== (provider === "gemini" ? _geminiModel : _groqModel)) {
-          logger.warn({ provider, model }, "AI fallback used");
-        }
-        return { reply: stripExtraSuggestionBlocks(reply), model: `${provider}/${model}` };
+        return { reply: stripExtraSuggestionBlocks(reply), model: logLabel };
       } catch (err: any) {
         const reason = err?.message ?? String(err);
-        errors.push(`${provider}/${model}: ${reason}`);
-        logger.warn({ provider, model, reason }, "AI model failed, trying next");
-        // Circuit breaker: remember quota/rate-limit failures
+        errors.push(`${label}/${model}: ${reason}`);
+        logger.warn({ provider: label, model, reason }, "AI model failed, trying next");
         if (isQuotaError(err) || reason.includes("TIMEOUT")) {
-          markModelFailed(provider, model);
+          markModelFailed(label, model);
         }
       }
     }

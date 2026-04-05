@@ -5,7 +5,11 @@ import { UpdateSettingsBody } from "@workspace/api-zod";
 import { invalidateSettingsCache } from "../services/ai";
 import { clearAdminSessions, sendAdminMessage } from "../services/whatsapp";
 
-const SENSITIVE_KEYS = new Set(["geminiApiKey", "groqApiKey"]);
+const SENSITIVE_KEYS = new Set([
+  "geminiApiKey", "geminiApiKey2", "geminiApiKey3",
+  "geminiApiKey4", "geminiApiKey5", "geminiApiKey6",
+  "groqApiKey",
+]);
 
 const KEY_LABELS: Record<string, string> = {
   ownerName: "اسم صاحب المشروع",
@@ -15,7 +19,12 @@ const KEY_LABELS: Record<string, string> = {
   projectDescription: "وصف المشروع",
   projectLink: "رابط المشروع",
   demoVideoUrl: "فيديو شرح التطبيق",
-  geminiApiKey: "مفتاح Gemini API",
+  geminiApiKey:  "مفتاح Gemini API 1",
+  geminiApiKey2: "مفتاح Gemini API 2",
+  geminiApiKey3: "مفتاح Gemini API 3",
+  geminiApiKey4: "مفتاح Gemini API 4",
+  geminiApiKey5: "مفتاح Gemini API 5",
+  geminiApiKey6: "مفتاح Gemini API 6",
   geminiModel: "موديل Gemini",
   groqApiKey: "مفتاح Groq API",
   groqModel: "موديل Groq",
@@ -47,7 +56,12 @@ function buildSettingsObject(raw: Record<string, string>) {
     projectDescription: raw.projectDescription ?? "تطبيق ذكاء اصطناعي يحوّل صور جداول الأسلاك الكهربائية إلى بيانات رقمية منظمة — يدعم العربية والإنجليزية والفرنسية",
     projectLink: raw.projectLink ?? "",
     demoVideoUrl: raw.demoVideoUrl ?? "",
-    geminiApiKey: raw.geminiApiKey ?? "",
+    geminiApiKey:  raw.geminiApiKey  ?? "",
+    geminiApiKey2: raw.geminiApiKey2 ?? "",
+    geminiApiKey3: raw.geminiApiKey3 ?? "",
+    geminiApiKey4: raw.geminiApiKey4 ?? "",
+    geminiApiKey5: raw.geminiApiKey5 ?? "",
+    geminiApiKey6: raw.geminiApiKey6 ?? "",
     geminiModel: raw.geminiModel ?? "",
     groqApiKey: raw.groqApiKey ?? "",
     groqModel: raw.groqModel ?? "",
@@ -81,7 +95,12 @@ router.post("/", async (req, res) => {
     { key: "projectDescription", value: data.projectDescription ?? "" },
     { key: "projectLink", value: data.projectLink ?? "" },
     { key: "demoVideoUrl", value: data.demoVideoUrl ?? "" },
-    { key: "geminiApiKey", value: data.geminiApiKey ?? "" },
+    { key: "geminiApiKey",  value: data.geminiApiKey  ?? "" },
+    { key: "geminiApiKey2", value: data.geminiApiKey2 ?? "" },
+    { key: "geminiApiKey3", value: data.geminiApiKey3 ?? "" },
+    { key: "geminiApiKey4", value: data.geminiApiKey4 ?? "" },
+    { key: "geminiApiKey5", value: data.geminiApiKey5 ?? "" },
+    { key: "geminiApiKey6", value: data.geminiApiKey6 ?? "" },
     { key: "geminiModel", value: data.geminiModel ?? "" },
     { key: "groqApiKey", value: data.groqApiKey ?? "" },
     { key: "groqModel", value: data.groqModel ?? "" },

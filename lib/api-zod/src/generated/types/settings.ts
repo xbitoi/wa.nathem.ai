@@ -16,6 +16,11 @@ export interface Settings {
   projectDescription?: string;
   projectLink?: string;
   geminiApiKey?: string;
+  geminiApiKey2?: string;
+  geminiApiKey3?: string;
+  geminiApiKey4?: string;
+  geminiApiKey5?: string;
+  geminiApiKey6?: string;
   geminiModel?: string;
   groqApiKey?: string;
   groqModel?: string;

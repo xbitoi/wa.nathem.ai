@@ -433,7 +433,12 @@ async function handleAdminCommand(text: string, phone: string): Promise<string> 
 
     // AI settings
     const aiModel = (await getSetting("aiModel")) ?? "gemini";
-    const geminiApiKey = await getSetting("geminiApiKey");
+    const geminiApiKey  = await getSetting("geminiApiKey");
+    const geminiApiKey2 = await getSetting("geminiApiKey2");
+    const geminiApiKey3 = await getSetting("geminiApiKey3");
+    const geminiApiKey4 = await getSetting("geminiApiKey4");
+    const geminiApiKey5 = await getSetting("geminiApiKey5");
+    const geminiApiKey6 = await getSetting("geminiApiKey6");
     const groqApiKey = await getSetting("groqApiKey");
     const geminiModel = (await getSetting("geminiModel")) ?? "لم يُحدد";
     const groqModel = (await getSetting("groqModel")) ?? "لم يُحدد";
@@ -448,9 +453,11 @@ async function handleAdminCommand(text: string, phone: string): Promise<string> 
     const maintenanceMsg = await getSetting("maintenanceMessage");
     const savedAdminPhone = await getSetting("adminPhone");
 
-    const geminiStatus = geminiApiKey
-      ? `✅ مضبوط — موديل: ${geminiModel}${aiModel === "gemini" ? " ◀ نشط" : ""}`
-      : `❌ مفتاح غير مضبوط`;
+    const geminiKeyCount = [geminiApiKey, geminiApiKey2, geminiApiKey3, geminiApiKey4, geminiApiKey5, geminiApiKey6]
+      .filter(k => k && k.trim()).length;
+    const geminiStatus = geminiKeyCount > 0
+      ? `✅ ${geminiKeyCount}/6 مفاتيح مضبوطة — موديل: ${geminiModel}${aiModel === "gemini" ? " ◀ نشط" : ""}`
+      : `❌ لا يوجد مفتاح مضبوط`;
     const groqStatus = groqApiKey
       ? `✅ مضبوط — موديل: ${groqModel}${aiModel === "groq" ? " ◀ نشط" : ""}`
       : `❌ مفتاح غير مضبوط`;
