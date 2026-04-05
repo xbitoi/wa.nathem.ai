@@ -64,8 +64,11 @@ function stripThinking(text: string): string {
     .trim();
 }
 
+// الشعار الرئيسي — يظهر دائماً في أول رسالة من رقم جديد
+const MAIN_SLOGAN = "يحوّل الفوضى البصرية إلى تنظيم رقمي 📄➡️💻";
+
+// شعارات عشوائية — تُنسج في سياق المحادثة بشكل تلقائي
 const SLOGANS = [
-  "يحوّل الفوضى البصرية إلى تنظيم رقمي 📄➡️💻",
   "من الورقة إلى القرار في ثوانٍ ⚡",
   "صفر أخطاء، إنتاج أذكى 🎯",
   "بيانات دقيقة، إنتاج بلا توقف 🏭",
@@ -95,10 +98,17 @@ function buildSystemPrompt(params: {
 
   const publicLink = projectLink ?? "";
 
-  // Slogan used only on first message and every 5th message — not every time
-  const useSloganThisMessage = messageCount === 0 || messageCount % 5 === 0;
-  const sloganIndex = messageCount % SLOGANS.length;
-  const assignedSlogan = SLOGANS[sloganIndex];
+  // Slogan strategy:
+  // - First message from a new number → always embed the MAIN_SLOGAN
+  // - All other messages → ~25% random chance to weave in a random slogan
+  const isFirstEver = messageCount === 0 && !isReturningUser;
+  let sloganInstruction = "";
+  if (isFirstEver) {
+    sloganInstruction = `• في هذه الرسالة الأولى، اندمج بشكل طبيعي بالشعار الرئيسي للمشروع: "${MAIN_SLOGAN}"`;
+  } else if (Math.random() < 0.28) {
+    const randomSlogan = SLOGANS[Math.floor(Math.random() * SLOGANS.length)];
+    sloganInstruction = `• إذا واتتك فرصة طبيعية في سياق ردك، اذكر هذا الشعار باندماج كامل دون أن يبدو مقحماً: "${randomSlogan}"`;
+  }
 
   const demoSection = `${publicLink ? `🔗 رابط التطبيق: ${publicLink}\n` : ""}بيانات الدخول التجريبية:
 • مهندس (Admin): username: admin / password: admin
@@ -135,7 +145,7 @@ ${isReturningUser
 • مقنع بالوقائع: تستخدم الأرقام والمقارنات لا المديح المجرّد.
 • طلق ومنسجم: حتى في الرسمية تبقى طبيعياً وليس آلة تقرأ نصاً.
 • لا تقل أبداً "مساعد ذكي" أو "AI assistant" أو "بوت" عن نفسك.
-${useSloganThisMessage ? `• اندمج بشكل طبيعي في ردك هذا بهذا الشعار: "${assignedSlogan}"` : ""}
+${sloganInstruction}
 
 ▌ قواعد التواصل
 ① اقرأ السؤال كاملاً — ما الذي يريده فعلاً؟ ما مشكلته؟ ما سياق حديثه؟
