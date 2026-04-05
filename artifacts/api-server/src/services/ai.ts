@@ -324,20 +324,21 @@ ${contactBlock}
 // Removed: gemini-2.5-flash-preview-04-17 (404 — not found in v1beta)
 // Removed: gemini-2.0-flash-exp (404)
 // Removed: gemma-3-* (400 "Developer instruction not enabled" — no systemInstruction support)
+// Removed: gemini-1.5-flash, gemini-1.5-flash-8b (404 — not available in v1beta)
 const GEMINI_MODELS = [
   "gemini-2.0-flash",               // Flash 2.0 — stable
   "gemini-2.0-flash-lite",          // lighter version, higher free quota
-  "gemini-1.5-flash",               // stable older generation
-  "gemini-1.5-flash-8b",            // smallest — highest free-tier quota
 ];
 
 // Groq fallback model chain — ordered by quota size
+// Removed: gemma2-9b-it (decommissioned by Groq)
+// Removed: mixtral-8x7b-32768 (decommissioned by Groq)
 const GROQ_MODELS = [
-  "meta-llama/llama-4-scout-17b-16e-instruct",    // 500k TPD
-  "llama-3.3-70b-versatile",                      // 100k TPD
+  "meta-llama/llama-4-scout-17b-16e-instruct",    // 500k TPD — Llama 4 Scout
+  "llama-3.3-70b-versatile",                      // 100k TPD — best quality
   "llama-3.1-8b-instant",                         // 500k TPD — fast small model
-  "gemma2-9b-it",                                 // 500k TPD — Google Gemma on Groq
-  "mixtral-8x7b-32768",                           // 500k TPD — good reasoning
+  "qwen-qwq-32b",                                 // 500k TPD — strong reasoning
+  "llama3-70b-8192",                              // 6k TPD — Llama 3 70B
 ];
 
 // Detect quota / billing / rate-limit errors that should trigger fallback
