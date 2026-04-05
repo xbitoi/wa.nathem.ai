@@ -923,8 +923,18 @@ export async function connectWhatsApp() {
 
         // ── Direct keyword detection — trigger state machine without AI ──
         const normalText = text.replace(/\s+/g, " ").trim();
-        const isContactRequest = /تواصل.{0,6}(صاحب|مالك|مشروع)|أريد.{0,10}(تواصل|أتواصل)|اريد.{0,10}(تواصل|اتواصل)|contact.{0,10}owner|reach.{0,10}owner/i.test(normalText);
-        const isForwardRequest = /أرسل.{0,6}رسالة|ارسل.{0,6}رسالة|قول.{0,5}له|بلّغه|ابلغه|send.{0,6}message/i.test(normalText);
+        const isContactRequest = new RegExp(
+          // Arabic: wants to contact owner
+          "تواصل.{0,8}(صاحب|مالك|مشروع)" +
+          "|(?:أريد|اريد|ابغى|أبغى|بغيت|نبغي|بدي|أبي|ابي).{0,12}(?:تواصل|أتواصل|اتواصل|أتكلم|اتكلم)" +
+          "|(?:تواصلوا|اتصلوا|تواصلي|اتصلي).{0,8}(?:معي|بي|فيّ)" +
+          "|(ربطني|ربطي|وصّلني|وصلني).{0,10}(?:صاحب|مالك)" +
+          "|(صاحب|مالك).{0,6}مشروع.{0,15}(?:رقم|تواصل|اتصل|واتساب|contact)" +
+          // English
+          "|contact.{0,12}owner|reach.{0,12}owner|talk.{0,8}owner|connect.{0,8}owner",
+          "i"
+        ).test(normalText);
+        const isForwardRequest = /أرسل.{0,6}رسالة|ارسل.{0,6}رسالة|قول.{0,5}له|بلّغه|ابلغه|بلغه|أبلغه|send.{0,6}message|tell.{0,6}him/i.test(normalText);
 
         if (!pendingForwards.has(phone) && (isContactRequest || isForwardRequest)) {
           const mode = isForwardRequest ? "forward" : "contact";
