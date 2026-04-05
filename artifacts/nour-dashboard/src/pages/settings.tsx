@@ -24,6 +24,7 @@ const settingsSchema = z.object({
   projectName: z.string().optional(),
   projectDescription: z.string().optional(),
   projectLink: z.union([z.string().url("Must be a valid URL"), z.literal("")]).optional(),
+  demoVideoUrl: z.union([z.string().url("Must be a valid URL"), z.literal("")]).optional(),
   geminiApiKey: z.string().optional(),
   geminiModel: z.string().optional(),
   groqApiKey: z.string().optional(),
@@ -159,7 +160,7 @@ export default function Settings() {
       queryClient.invalidateQueries();
       form.reset({
         ownerName: "", ownerEmail: "", ownerPhone: "", adminPhone: "",
-        projectName: "", projectDescription: "", projectLink: "",
+        projectName: "", projectDescription: "", projectLink: "", demoVideoUrl: "",
         geminiApiKey: "", geminiModel: "", groqApiKey: "", groqModel: "",
         aiModel: "gemini", agentPersonality: "", autoReply: true,
         maintenanceMode: false,
@@ -173,7 +174,7 @@ export default function Settings() {
     resolver: zodResolver(settingsSchema),
     defaultValues: {
       ownerName: "", ownerEmail: "", ownerPhone: "", adminPhone: "",
-      projectName: "", projectDescription: "", projectLink: "",
+      projectName: "", projectDescription: "", projectLink: "", demoVideoUrl: "",
       geminiApiKey: "", geminiModel: "", groqApiKey: "", groqModel: "",
       aiModel: "gemini", agentPersonality: "", autoReply: true,
       maintenanceMode: false,
@@ -194,6 +195,7 @@ export default function Settings() {
       projectName: settings.projectName || "",
       projectDescription: settings.projectDescription || "",
       projectLink: settings.projectLink || "",
+      demoVideoUrl: (settings as any).demoVideoUrl || "",
       geminiApiKey: settings.geminiApiKey || "",
       geminiModel: (settings as any).geminiModel || "",
       groqApiKey: settings.groqApiKey || "",
@@ -349,6 +351,23 @@ export default function Settings() {
                   </FormItem>
                 )} />
               </div>
+              <FormField control={form.control} name="demoVideoUrl" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center gap-2">
+                    🎥 Demo Video URL
+                    <span className="text-muted-foreground text-xs font-normal">(optional — sent to users on request)</span>
+                  </FormLabel>
+                  <FormControl>
+                    <Input type="url" placeholder="https://youtube.com/... or direct .mp4 link" {...field} />
+                  </FormControl>
+                  <FormDescription className="text-xs">
+                    {field.value
+                      ? `✅ فيديو مرفوع — ناظم سيقترحه ويرسله عند الطلب`
+                      : "الصق رابط يوتيوب أو رابط ملف .mp4 مباشر — سيُرسله ناظم لمن يطلبه"}
+                  </FormDescription>
+                  <FormMessage/>
+                </FormItem>
+              )} />
               <FormField control={form.control} name="projectDescription" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Description <span className="text-muted-foreground text-xs">(optional)</span></FormLabel>

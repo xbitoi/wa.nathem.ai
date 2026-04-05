@@ -7,7 +7,7 @@ let _settingsCache: Record<string, string | null> | null = null;
 let _settingsCacheAt = 0;
 const SETTINGS_TTL_MS = 30_000;
 
-async function getAllSettings(): Promise<Record<string, string | null>> {
+export async function getAllSettings(): Promise<Record<string, string | null>> {
   const now = Date.now();
   if (_settingsCache && now - _settingsCacheAt < SETTINGS_TTL_MS) return _settingsCache;
   const rows = await db.select().from(settingsTable);
@@ -88,11 +88,12 @@ function buildSystemPrompt(params: {
   ownerPhone: string;
   ownerEmail: string;
   projectLink: string;
+  demoVideoUrl: string;
   agentPersonality: string;
   isReturningUser?: boolean;
   messageCount?: number;
 }): string {
-  const { ownerName, ownerPhone, ownerEmail, projectLink, agentPersonality, isReturningUser, messageCount = 0 } = params;
+  const { ownerName, ownerPhone, ownerEmail, projectLink, demoVideoUrl, agentPersonality, isReturningUser, messageCount = 0 } = params;
 
   const publicLink = projectLink ?? "";
 
@@ -111,6 +112,16 @@ function buildSystemPrompt(params: {
   const demoSection = `${publicLink ? `🔗 رابط التطبيق: ${publicLink}\n` : ""}بيانات الدخول التجريبية:
 • مهندس (Admin): username: admin / password: admin
 • عامل: خط الإنتاج: xjx4 / محطة العمل: sps2`;
+
+  const videoSection = demoVideoUrl
+    ? `▌ فيديو شرح التطبيق — متاح للإرسال عند الطلب
+رابط الفيديو: ${demoVideoUrl}
+⚠️ أرسل وسم [SEND_DEMO_VIDEO] في ردك فقط عندما يطلب المستخدم صراحةً مشاهدة الفيديو:
+  - "أريد الفيديو" / "أبغى فيديو" / "أرسل الفيديو" / "ابعثلي الشرح"
+  - "show me the video" / "send video" / "video explanation" / "demo video"
+  - في الاقتراحات: يمكنك اقتراح "شاهد الفيديو التوضيحي للتطبيق 🎥" كأحد الاقتراحات
+لا ترسل [SEND_DEMO_VIDEO] تلقائياً — فقط عند الطلب الصريح.`
+    : ``;
 
   const contactBlock = (() => {
     const lines: string[] = [];
@@ -242,6 +253,7 @@ Yazaki AI Table Reader يحوّل مخططات الأسلاك الكهربائي
 لا ترسلها عند السؤال العام — هذا يُضعف التشويق.
 البيانات (عند الحاجة فقط):
 ${demoSection}
+${videoSection ? `\n${videoSection}` : ""}
 
 ▌ قيم ثابتة — لا تعدّلها أبداً
 ⚠️ هذه القيم تُكتب حرفاً بحرف بغض النظر عن لغة المحادثة — ممنوع ترجمتها أو تعريبها:
@@ -452,6 +464,7 @@ export async function generateAIReply(
   const ownerPhone     = s["ownerPhone"];
   const ownerEmail     = s["ownerEmail"];
   const projectLink    = s["projectLink"];
+  const demoVideoUrl   = s["demoVideoUrl"];
   const agentPersonality = s["agentPersonality"];
   const geminiApiKey   = s["geminiApiKey"];
   const groqApiKey     = s["groqApiKey"];
@@ -463,6 +476,7 @@ export async function generateAIReply(
   const _ownerPhone   = ownerPhone  ?? "";
   const _ownerEmail   = ownerEmail  ?? "";
   const _projectLink  = projectLink ?? "";
+  const _demoVideoUrl = demoVideoUrl ?? "";
   const _personality  = agentPersonality ?? "";
   const _geminiKey    = geminiApiKey ?? "";
   const _groqKey      = groqApiKey   ?? "";
@@ -472,6 +486,7 @@ export async function generateAIReply(
     ownerPhone: _ownerPhone,
     ownerEmail: _ownerEmail,
     projectLink: _projectLink,
+    demoVideoUrl: _demoVideoUrl,
     agentPersonality: _personality,
     isReturningUser,
     messageCount,

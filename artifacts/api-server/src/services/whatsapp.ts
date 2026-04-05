@@ -1,7 +1,7 @@
 import { logger } from "../lib/logger";
 import { db, contactsTable, messagesTable, settingsTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
-import { generateAIReply, generateAdminReply } from "./ai";
+import { generateAIReply, generateAdminReply, getAllSettings } from "./ai";
 import fs from "fs";
 import path from "path";
 
@@ -1007,6 +1007,33 @@ export async function connectWhatsApp() {
               reply = reply.replace(/\[FORWARD_ADMIN_START\]/g, "").trim();
               pendingForwards.set(phone, { step: "ask_name", mode: "forward" });
               reply += `\n\nما اسمك حتى أُعرّفك لصاحب التطبيق؟ 👤`;
+            }
+
+            // ── Intercept video tag — send demo video if available ──
+            if (reply.includes("[SEND_DEMO_VIDEO]")) {
+              reply = reply.replace(/\[SEND_DEMO_VIDEO\]/g, "").trim();
+              const allS = await getAllSettings();
+              const videoUrl = (allS["demoVideoUrl"] ?? "").trim();
+              if (videoUrl) {
+                await sock.sendPresenceUpdate("paused", jid);
+                if (reply) {
+                  await sock.sendMessage(jid, { text: reply });
+                  await saveMessage(contact.id, reply, "outbound", model);
+                }
+                // Small delay then send the video/link
+                await new Promise(r => setTimeout(r, 800));
+                const isDirectVideo = /\.(mp4|mov|avi|webm)(\?|$)/i.test(videoUrl);
+                if (isDirectVideo) {
+                  await sock.sendMessage(jid, {
+                    video: { url: videoUrl },
+                    caption: "🎥 فيديو توضيحي — Yazaki AI Table Reader",
+                  });
+                } else {
+                  await sock.sendMessage(jid, { text: `🎥 *فيديو شرح التطبيق:*\n${videoUrl}` });
+                }
+                await saveMessage(contact.id, `[video: ${videoUrl}]`, "outbound", model);
+                return; // already sent — skip default sendMessage below
+              }
             }
           }
 

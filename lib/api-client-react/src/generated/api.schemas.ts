@@ -130,6 +130,7 @@ export interface Settings {
   projectName?: string;
   projectDescription?: string;
   projectLink?: string;
+  demoVideoUrl?: string;
   geminiApiKey?: string;
   geminiModel?: string;
   groqApiKey?: string;
