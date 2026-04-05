@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "Ep9m8iN54KDIXBBiyNloy"
+uri = "file://system-prompts.txt"
+type = "text"
+title = "ناظم — System Prompts"
