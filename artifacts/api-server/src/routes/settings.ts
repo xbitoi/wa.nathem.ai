@@ -3,7 +3,27 @@ import { db, settingsTable, messagesTable, contactsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { UpdateSettingsBody } from "@workspace/api-zod";
 import { invalidateSettingsCache } from "../services/ai";
-import { clearAdminSessions } from "../services/whatsapp";
+import { clearAdminSessions, sendAdminMessage } from "../services/whatsapp";
+
+const SENSITIVE_KEYS = new Set(["geminiApiKey", "groqApiKey"]);
+
+const KEY_LABELS: Record<string, string> = {
+  ownerName: "اسم صاحب المشروع",
+  ownerEmail: "البريد الإلكتروني",
+  ownerPhone: "رقم الهاتف",
+  projectName: "اسم المشروع",
+  projectDescription: "وصف المشروع",
+  projectLink: "رابط المشروع",
+  geminiApiKey: "مفتاح Gemini API",
+  geminiModel: "موديل Gemini",
+  groqApiKey: "مفتاح Groq API",
+  groqModel: "موديل Groq",
+  aiModel: "مزود الذكاء الاصطناعي",
+  agentPersonality: "شخصية ناظم",
+  autoReply: "الرد التلقائي",
+  maintenanceMode: "وضع الصيانة",
+  maintenanceMessage: "رسالة الصيانة",
+};
 
 const router = Router();
 
@@ -47,6 +67,10 @@ router.post("/", async (req, res) => {
   if (!body.success) return res.status(400).json({ error: "Invalid input" });
 
   const data = body.data;
+
+  // Snapshot current settings BEFORE saving (for diff notification)
+  const oldSettings = await getAllSettings();
+
   const updates: Array<{ key: string; value: string }> = [
     { key: "ownerName", value: data.ownerName ?? "" },
     { key: "ownerEmail", value: data.ownerEmail ?? "" },
@@ -66,7 +90,6 @@ router.post("/", async (req, res) => {
   ];
 
   // adminPhone: only overwrite if a non-empty value is explicitly provided
-  // Prevents dashboard "Save" from accidentally clearing the phone set via WhatsApp auth
   if (data.adminPhone && data.adminPhone.trim() !== "") {
     updates.push({ key: "adminPhone", value: data.adminPhone.trim() });
   }
@@ -80,6 +103,33 @@ router.post("/", async (req, res) => {
 
   // Invalidate the AI settings cache so next message uses fresh values
   invalidateSettingsCache();
+
+  // Build diff and notify admin via WhatsApp
+  const changedLines: string[] = [];
+  for (const { key, value } of updates) {
+    const oldVal = oldSettings[key] ?? "";
+    if (oldVal === value) continue;
+    const label = KEY_LABELS[key] ?? key;
+    if (SENSITIVE_KEYS.has(key)) {
+      changedLines.push(`• ${label}: ✅ تم التحديث`);
+    } else if (key === "agentPersonality") {
+      changedLines.push(
+        value.trim() === ""
+          ? `• ${label}: 🗑️ تم المسح`
+          : `• ${label}: ✏️ تم التعديل`
+      );
+    } else {
+      const display = value.length > 60 ? value.slice(0, 57) + "…" : value;
+      changedLines.push(`• ${label}: ${display || "_(فارغ)_"}`);
+    }
+  }
+
+  if (changedLines.length > 0) {
+    const notif =
+      `🛠️ *تم تحديث إعدادات ناظم من لوحة التحكم*\n\n` +
+      changedLines.join("\n");
+    sendAdminMessage(notif).catch(() => {});
+  }
 
   const raw = await getAllSettings();
   res.json(buildSettingsObject(raw));

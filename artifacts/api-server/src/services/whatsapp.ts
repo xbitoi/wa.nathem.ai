@@ -192,6 +192,11 @@ export async function sendAdminAlert(message: string) {
   await sendToAdminJid(`⚠️ *تنبيه النظام*\n${message}`);
 }
 
+export async function sendAdminMessage(text: string) {
+  if (state.status !== "connected" || !state.client) return;
+  await sendToAdminJid(text);
+}
+
 // Build a human-readable label for a contact in admin notifications
 // Real phone numbers get a wa.me link; WhatsApp LIDs are labeled clearly
 // Returns { label, replyCmd } — replyCmd is the second message the admin can copy-paste
