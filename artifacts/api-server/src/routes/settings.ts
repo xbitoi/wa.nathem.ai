@@ -84,98 +84,50 @@ router.post("/", async (req, res) => {
   res.json(buildSettingsObject(raw));
 });
 
-// --- Gemini model fetching ---
-const GEMINI_FREE_KEYWORDS = ["flash", "gemma"];
+// --- Gemini model fetching — fixed list of 2 supported models ---
+const GEMINI_SUPPORTED = [
+  { id: "gemini-2.5-flash-preview-04-17", name: "Gemini 2.5 Flash", description: "الأحدث — رصيد يومي كبير" },
+  { id: "gemini-2.0-flash",               name: "Gemini 2.0 Flash", description: "ثابت ومستقر — رصيد عالٍ" },
+];
 
 router.get("/models/gemini", async (req, res) => {
   const key = req.query.key as string;
   if (!key) return res.status(400).json({ error: "Missing key" });
 
+  // Validate key with a lightweight check
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models?key=${key}&pageSize=50`
+    const check = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${key}&pageSize=1`
     );
-    if (!response.ok) {
-      return res.status(400).json({ error: "Invalid API key or quota exceeded" });
-    }
-    const data = (await response.json()) as { models?: Array<{ name: string; displayName: string; description: string; supportedGenerationMethods?: string[] }> };
-    const allModels = data.models ?? [];
-
-    const filtered = allModels
-      .filter((m) => {
-        const id = m.name.replace("models/", "").toLowerCase();
-        const supportsChatOrGenerate =
-          !m.supportedGenerationMethods ||
-          m.supportedGenerationMethods.includes("generateContent");
-        const isFreeModel = GEMINI_FREE_KEYWORDS.some((kw) => id.includes(kw));
-        return isFreeModel && supportsChatOrGenerate;
-      })
-      .map((m) => ({
-        id: m.name.replace("models/", ""),
-        name: m.displayName || m.name.replace("models/", ""),
-        description: m.description?.slice(0, 80) ?? "",
-      }));
-
-    return res.json({ models: filtered });
+    if (!check.ok) return res.status(400).json({ error: "Invalid API key or quota exceeded" });
   } catch {
     return res.status(500).json({ error: "Failed to reach Gemini API" });
   }
+
+  return res.json({ models: GEMINI_SUPPORTED });
 });
 
-// --- Groq model fetching ---
-const GROQ_FREE_PREFERRED = [
-  "llama-3.3-70b-versatile",
-  "llama-3.1-70b-versatile",
-  "llama-3.1-8b-instant",
-  "llama3-70b-8192",
-  "llama3-8b-8192",
-  "mixtral-8x7b-32768",
-  "gemma2-9b-it",
-  "gemma-7b-it",
+// --- Groq model fetching — fixed list of 2 supported models ---
+const GROQ_SUPPORTED = [
+  { id: "llama-3.3-70b-versatile",                   name: "Llama 3.3 70B Versatile",     description: "الأموثق — رصيد يومي كبير" },
+  { id: "meta-llama/llama-4-scout-17b-16e-instruct", name: "Llama 4 Scout 17B",            description: "الأحدث — رصيد جيد" },
 ];
 
 router.get("/models/groq", async (req, res) => {
   const key = req.query.key as string;
   if (!key) return res.status(400).json({ error: "Missing key" });
 
+  // Validate key
   try {
     const response = await fetch("https://api.groq.com/openai/v1/models", {
       headers: { Authorization: `Bearer ${key}` },
     });
-    if (!response.ok) {
-      return res.status(400).json({ error: "Invalid API key" });
-    }
-    const data = (await response.json()) as { data?: Array<{ id: string; owned_by: string; context_window?: number }> };
-    const allModels = data.data ?? [];
-
-    const filtered = allModels
-      .filter((m) => {
-        const id = m.id.toLowerCase();
-        return (
-          !id.includes("whisper") &&
-          !id.includes("tts") &&
-          !id.includes("vision") &&
-          (id.includes("llama") || id.includes("mixtral") || id.includes("gemma") || id.includes("qwen"))
-        );
-      })
-      .sort((a, b) => {
-        const ai = GROQ_FREE_PREFERRED.indexOf(a.id);
-        const bi = GROQ_FREE_PREFERRED.indexOf(b.id);
-        if (ai === -1 && bi === -1) return a.id.localeCompare(b.id);
-        if (ai === -1) return 1;
-        if (bi === -1) return -1;
-        return ai - bi;
-      })
-      .map((m) => ({
-        id: m.id,
-        name: m.id,
-        description: m.context_window ? `Context: ${(m.context_window / 1000).toFixed(0)}k tokens` : "",
-      }));
-
-    return res.json({ models: filtered });
+    if (!response.ok) return res.status(400).json({ error: "Invalid API key" });
   } catch {
     return res.status(500).json({ error: "Failed to reach Groq API" });
   }
+
+  return res.json({ models: GROQ_SUPPORTED });
 });
 
 export default router;
