@@ -489,9 +489,9 @@ async function handleAdminCommand(text: string, phone: string): Promise<string> 
 ━━━━━━━━━━━━━━━━━━
 ⚙️ *الإعدادات*
 ━━━━━━━━━━━━━━━━━━
-• المشروع: ${projectName}
-• صاحب المشروع: ${ownerName ?? "لم يُضبط"}
-• رقم صاحب المشروع: ${ownerPhone ? `+${ownerPhone}` : "لم يُضبط"}
+• التطبيق: ${projectName}
+• صاحب التطبيق: ${ownerName ?? "لم يُضبط"}
+• رقم صاحب التطبيق: ${ownerPhone ? `+${ownerPhone}` : "لم يُضبط"}
 • وضع الصيانة: ${maintenance ? `⛔ مفعّل\n• رسالة الصيانة: "${(maintenanceMsg ?? "").slice(0, 60)}"` : "✅ معطّل"}`;
   }
 
@@ -850,7 +850,7 @@ export async function connectWhatsApp() {
 
                 // Both modes now ask for message after name
               fwdState.step = "ask_msg";
-              const askMsg = `بارك الله فيك *${userName}* 🤝\nاكتب رسالتك أو ما تريد إيصاله لصاحب المشروع وسأحيله إليه فوراً 📩`;
+              const askMsg = `بارك الله فيك *${userName}* 🤝\nاكتب رسالتك أو ما تريد إيصاله لصاحب التطبيق وسأحيله إليه فوراً 📩`;
               await sock.sendMessage(jid, { text: askMsg });
               await saveMessage(contact.id, askMsg, "outbound", "system/contact");
               return;
@@ -895,7 +895,7 @@ export async function connectWhatsApp() {
                 : "";
 
               const confirmMsg = sent
-                ? `✅ وصلت رسالتك لصاحب المشروع — سيتواصل معك قريباً إن شاء الله 🙏${fDetailsLine}`
+                ? `✅ وصلت رسالتك لصاحب التطبيق — سيتواصل معك قريباً إن شاء الله 🙏${fDetailsLine}`
                 : `⚠️ حدث خطأ في الإرسال.${fDetailsLine || "\nجرّب مجدداً."}`;
 
               logger.info({ jid, confirmMsg: confirmMsg.slice(0, 60) }, "Sending forward confirmation to visitor");
@@ -935,7 +935,7 @@ export async function connectWhatsApp() {
           logger.info({ phone, mode, text }, "Direct keyword triggered contact flow");
           await saveMessage(contact.id, text, "inbound");
           pendingForwards.set(phone, { step: "ask_name", mode });
-          const promptMsg = `يسعدني مساعدتك! 🤝\nما اسمك حتى أُعرّفك لصاحب المشروع؟ 👤`;
+          const promptMsg = `يسعدني مساعدتك! 🤝\nما اسمك حتى أُعرّفك لصاحب التطبيق؟ 👤`;
           await sock.sendMessage(jid, { text: promptMsg });
           await saveMessage(contact.id, promptMsg, "outbound", "system/contact");
           return;
@@ -1002,11 +1002,11 @@ export async function connectWhatsApp() {
             if (reply.includes("[CONTACT_OWNER_START]")) {
               reply = reply.replace(/\[CONTACT_OWNER_START\]/g, "").trim();
               pendingForwards.set(phone, { step: "ask_name", mode: "contact" });
-              reply += `\n\nما اسمك حتى أُعرّفك لصاحب المشروع؟ 👤`;
+              reply += `\n\nما اسمك حتى أُعرّفك لصاحب التطبيق؟ 👤`;
             } else if (reply.includes("[FORWARD_ADMIN_START]")) {
               reply = reply.replace(/\[FORWARD_ADMIN_START\]/g, "").trim();
               pendingForwards.set(phone, { step: "ask_name", mode: "forward" });
-              reply += `\n\nما اسمك حتى أُعرّفك لصاحب المشروع؟ 👤`;
+              reply += `\n\nما اسمك حتى أُعرّفك لصاحب التطبيق؟ 👤`;
             }
           }
 
