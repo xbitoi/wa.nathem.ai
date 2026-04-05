@@ -1,8 +1,9 @@
 import { Router } from "express";
-import { db, settingsTable } from "@workspace/db";
+import { db, settingsTable, messagesTable, contactsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { UpdateSettingsBody } from "@workspace/api-zod";
 import { invalidateSettingsCache } from "../services/ai";
+import { clearAdminSessions } from "../services/whatsapp";
 
 const router = Router();
 
@@ -128,6 +129,26 @@ router.get("/models/groq", async (req, res) => {
   }
 
   return res.json({ models: GROQ_SUPPORTED });
+});
+
+// ─── Full system reset ────────────────────────────────────────────────────────
+router.post("/reset", async (_req, res) => {
+  try {
+    // Order: messages first (FK → contacts), then contacts, then settings
+    await db.delete(messagesTable);
+    await db.delete(contactsTable);
+    await db.delete(settingsTable);
+
+    // Clear in-memory admin session cache
+    clearAdminSessions();
+
+    // Bust the AI settings cache so next call reads fresh (empty) DB
+    invalidateSettingsCache();
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Reset failed", detail: String(err) });
+  }
 });
 
 export default router;

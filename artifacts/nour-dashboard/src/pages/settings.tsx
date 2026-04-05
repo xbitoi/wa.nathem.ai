@@ -11,8 +11,8 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Eye, EyeOff, RefreshCw, CheckCircle2, AlertCircle, Trash2, MessageSquareOff, UsersRound, Save, CloudUpload, Cloud, CloudOff } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { Loader2, Eye, EyeOff, RefreshCw, CheckCircle2, AlertCircle, Trash2, MessageSquareOff, UsersRound, Save, CloudUpload, Cloud, CloudOff, RotateCcw } from "lucide-react";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
@@ -146,6 +146,27 @@ export default function Settings() {
       onSuccess: (data) => { toast({ title: "✅ تم مسح البيانات", description: data.message }); queryClient.invalidateQueries(); },
       onError: () => toast({ title: "خطأ", description: "فشل مسح البيانات", variant: "destructive" }),
     },
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/settings/reset", { method: "POST" });
+      if (!res.ok) throw new Error("Reset failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "✅ تمت إعادة التعيين", description: "ناظم الآن كأنه وُلد من جديد — أرسل كيرا لإعادة تسجيل المشرف." });
+      queryClient.invalidateQueries();
+      form.reset({
+        ownerName: "", ownerEmail: "", ownerPhone: "", adminPhone: "",
+        projectName: "", projectDescription: "", projectLink: "",
+        geminiApiKey: "", geminiModel: "", groqApiKey: "", groqModel: "",
+        aiModel: "gemini", agentPersonality: "", autoReply: true,
+        maintenanceMode: false,
+        maintenanceMessage: "⚙️ النظام في وضع الصيانة حالياً. سيعود قريباً — We'll be back soon.",
+      });
+    },
+    onError: () => toast({ title: "خطأ", description: "فشل في إعادة التعيين", variant: "destructive" }),
   });
 
   const form = useForm<SettingsFormValues>({
@@ -500,46 +521,95 @@ export default function Settings() {
           </CardTitle>
           <CardDescription>حذف البيانات المخزنة — لا يمكن التراجع عن هذه الإجراءات.</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col sm:flex-row gap-3">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 gap-2">
-                <MessageSquareOff className="h-4 w-4" />مسح كل الرسائل
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>تأكيد مسح الرسائل</AlertDialogTitle>
-                <AlertDialogDescription>سيتم حذف كل سجلات المحادثات من قاعدة البيانات. لن تتأثر جهات الاتصال. هذا الإجراء لا يمكن التراجع عنه.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>إلغاء</AlertDialogCancel>
-                <AlertDialogAction onClick={() => clearMessagesMutation.mutate({})} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                  {clearMessagesMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}مسح الرسائل
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 gap-2">
+                  <MessageSquareOff className="h-4 w-4" />مسح كل الرسائل
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>تأكيد مسح الرسائل</AlertDialogTitle>
+                  <AlertDialogDescription>سيتم حذف كل سجلات المحادثات من قاعدة البيانات. لن تتأثر جهات الاتصال. هذا الإجراء لا يمكن التراجع عنه.</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => clearMessagesMutation.mutate({})} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    {clearMessagesMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}مسح الرسائل
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
 
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 gap-2">
-                <UsersRound className="h-4 w-4" />مسح جهات الاتصال والرسائل
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>تأكيد مسح جهات الاتصال</AlertDialogTitle>
-                <AlertDialogDescription>سيتم حذف كل جهات الاتصال وجميع الرسائل المرتبطة بها. هذا الإجراء لا يمكن التراجع عنه.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>إلغاء</AlertDialogCancel>
-                <AlertDialogAction onClick={() => clearContactsMutation.mutate({})} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                  {clearContactsMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}مسح الكل
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 gap-2">
+                  <UsersRound className="h-4 w-4" />مسح جهات الاتصال والرسائل
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>تأكيد مسح جهات الاتصال</AlertDialogTitle>
+                  <AlertDialogDescription>سيتم حذف كل جهات الاتصال وجميع الرسائل المرتبطة بها. هذا الإجراء لا يمكن التراجع عنه.</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => clearContactsMutation.mutate({})} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    {clearContactsMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}مسح الكل
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+
+          {/* Full Reset — Danger Zone */}
+          <div className="border border-destructive/60 rounded-lg p-4 bg-destructive/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-destructive flex items-center gap-1.5">
+                <RotateCcw className="h-4 w-4" />إعادة تعيين كاملة — Reset
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                يمسح كل شيء: الإعدادات، رقم الأدمن، ذاكرة ناظم، جهات الاتصال، الرسائل. كأنه وُلد من جديد.
+              </p>
+            </div>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" className="gap-2 shrink-0" disabled={resetMutation.isPending}>
+                  {resetMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                  إعادة تعيين
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-destructive flex items-center gap-2">
+                    <RotateCcw className="h-5 w-5" />تأكيد إعادة التعيين الكاملة
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="space-y-2">
+                    <span className="block">سيتم حذف <strong>كل شيء</strong> من قاعدة البيانات:</span>
+                    <span className="block text-right leading-7">
+                      🗑 جميع الإعدادات (اسم المشروع، API keys، الشخصية...)<br/>
+                      🗑 رقم المشرف — سيُلغى وضع الخضوع<br/>
+                      🗑 ذاكرة ناظم كاملة — كل المحادثات<br/>
+                      🗑 جميع جهات الاتصال والرسائل
+                    </span>
+                    <span className="block font-semibold text-destructive">بعد الإعادة، أرسل كيرا من واتساب لتسجيل المشرف من جديد. هذا الإجراء لا يمكن التراجع عنه.</span>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => resetMutation.mutate()}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {resetMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                    نعم، امسح كل شيء
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </CardContent>
       </Card>
     </div>

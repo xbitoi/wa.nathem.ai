@@ -28,6 +28,11 @@ const SESSION_DIR = path.join(process.cwd(), ".whatsapp-session");
 // In-memory set of phones that authenticated as admin in this session
 const adminSessions = new Set<string>();
 
+/** Called by the reset endpoint to wipe in-memory admin sessions */
+export function clearAdminSessions() {
+  adminSessions.clear();
+}
+
 // ─── State machine for "contact / forward message to admin" multi-turn flow ──
 interface ForwardState {
   step: "ask_name" | "ask_msg";
