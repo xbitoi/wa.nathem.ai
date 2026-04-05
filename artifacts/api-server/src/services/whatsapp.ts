@@ -978,9 +978,11 @@ export async function connectWhatsApp() {
             const appliedKeys: string[] = [];
             for (const [key, value] of Object.entries(adminResult.actions)) {
               if (!ALLOWED_ADMIN_KEYS.has(key)) continue;
-              await upsertSetting(key, value);
-              appliedKeys.push(`${key}=${value}`);
-              logger.info({ key, value }, "Admin AI applied setting change");
+              const isClear = value === "__CLEAR__";
+              const finalValue = isClear ? "" : value;
+              await upsertSetting(key, finalValue);
+              appliedKeys.push(isClear ? `${key}=✓ ممسوح` : `${key}=${value}`);
+              logger.info({ key, value: isClear ? "(cleared)" : value }, "Admin AI applied setting change");
             }
             if (appliedKeys.length > 0) {
               reply += `\n\n✅ *تم تطبيق:* ${appliedKeys.map(k => `\`${k}\``).join(", ")}`;
