@@ -768,8 +768,11 @@ export async function connectWhatsApp() {
         normalizedText === "ana kira";
 
       if (isKiraPassword) {
-        {
-          // Password is the sole auth mechanism — always update and grant access
+        // Only grant admin if: no admin registered yet, OR this is the registered admin re-authenticating
+        if (savedAdminPhone && savedAdminPhone !== phone) {
+          // Different number trying to authenticate — silently fall through to AI
+        } else {
+          // First-time registration OR the legitimate admin re-authenticating after restart
           await upsertSetting("adminPhone", phone);
           adminSessions.add(phone);
           await saveMessage(contact.id, text, "inbound");
