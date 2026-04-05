@@ -320,14 +320,13 @@ ${contactBlock}
 `.trim();
 }
 
-// Gemini fallback model chain
-// Removed: gemini-2.5-flash-preview-04-17 (404 — not found in v1beta)
-// Removed: gemini-2.0-flash-exp (404)
-// Removed: gemma-3-* (400 "Developer instruction not enabled" — no systemInstruction support)
-// Removed: gemini-1.5-flash, gemini-1.5-flash-8b (404 — not available in v1beta)
+// Gemini fallback model chain — ordered by capability (best first)
+// Verified available via ListModels on 2026-04-05
 const GEMINI_MODELS = [
-  "gemini-2.0-flash",               // Flash 2.0 — stable
-  "gemini-2.0-flash-lite",          // lighter version, higher free quota
+  "gemini-3.1-flash-lite-preview",  // Flash 3.1 — latest generation
+  "gemini-2.5-flash",               // Flash 2.5 — strong & stable
+  "gemini-2.0-flash",               // Flash 2.0 — reliable fallback
+  "gemini-2.0-flash-lite",          // Flash 2.0 Lite — highest free-quota
 ];
 
 // Groq fallback model chain — ordered by quota size
