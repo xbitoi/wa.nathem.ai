@@ -262,6 +262,7 @@ function isAdminCommand(text: string): boolean {
   if (/^(?:إلغاء حظر|الغاء حظر)\s+\+?[\d]+/.test(t)) return true;
   if (/^(?:تعيين شخصية|شخصية نور|تغيير شخصية|برومبت)\s+.+/is.test(t)) return true;
   if (/^رد[ّ]?\s+\S+\s+[\s\S]+/i.test(t)) return true;
+  if (/^(?:ارسل|أرسل|ابعث|إرسال)\s+\+?[\d\S]+\s+[\s\S]+/i.test(t)) return true;
 
   return false;
 }
@@ -302,8 +303,11 @@ async function handleAdminCommand(text: string, phone: string): Promise<string> 
 🚫 *حظر [رقم]* — حظر رقم
 ✅ *إلغاء حظر [رقم]* — رفع الحظر عن رقم
 
-💬 *ردّ [رقم أو معرف] [رسالة]* — أرسل رسالة مباشرة لأي شخص عبر ناظم
+💬 *ردّ [رقم أو معرف] [رسالة]* — أرسل رسالة نصية مباشرة لأي شخص
    مثال: ردّ 127728753836083 مرحبا، سأتواصل معك قريباً
+
+🤖 *ارسل [رقم] [تعليمات]* — ناظم يصيغ رسالة تقديمية بأسلوبه ويرسلها
+   مثال: ارسل 212XXXXXXXXX أرسل له دعوة لتجربة التطبيق
 
 🚪 *خروج* — إغلاق الجلسة الحالية`;
   }
@@ -601,6 +605,46 @@ async function handleAdminCommand(text: string, phone: string): Promise<string> 
       : `❌ فشل الإرسال — تأكد من صحة المعرف وحاول مجدداً.`;
   }
 
+  // --- Outbound AI message (ارسل [رقم] [تعليمات]) ---
+  const outboundMatch = t.match(/^(?:ارسل|أرسل|ابعث|إرسال)\s+(\+?[\d\S]+?)\s+([\s\S]+)/i);
+  if (outboundMatch) {
+    const targetRaw = outboundMatch[1].replace(/^\+/, "").trim();
+    const instructions = outboundMatch[2].trim();
+
+    if (!state.client || state.status !== "connected") {
+      return `❌ واتساب غير متصل حالياً.`;
+    }
+
+    // Generate an outbound presenter message using AI
+    const aiPrompt = `[طلب الإدارة — رسالة صادرة]: اكتب رسالة تقديمية لشخص لم يتواصل معنا من قبل. يجب أن تكون بأسلوب ناظم كمقدم تطبيق "Yazaki AI Table Reader". التعليمات: ${instructions}`;
+    const { reply: generatedMsg } = await generateAIReply(aiPrompt, [], false, 0);
+
+    let sent = false;
+    for (const suffix of ["@s.whatsapp.net", "@lid"]) {
+      try {
+        await state.client.sendMessage(`${targetRaw}${suffix}`, { text: generatedMsg });
+        sent = true;
+        logger.info({ targetRaw, suffix }, "Outbound AI message sent");
+
+        // Save to DB if contact exists
+        const contacts = await db.select().from(contactsTable).where(eq(contactsTable.phone, targetRaw));
+        if (contacts[0]) {
+          await db.insert(messagesTable).values({
+            contactId: contacts[0].id,
+            content: generatedMsg,
+            direction: "outbound",
+            model: "admin/outbound",
+          });
+        }
+        break;
+      } catch { /* try next suffix */ }
+    }
+
+    if (!sent) return `❌ فشل الإرسال — تأكد من صحة الرقم وحاول مجدداً.`;
+    const preview = generatedMsg.length > 120 ? generatedMsg.slice(0, 120) + "…" : generatedMsg;
+    return `✅ *تم إرسال الرسالة إلى +${targetRaw}:*\n\n${preview}`;
+  }
+
   return `❓ أمر غير معروف. أرسل *مساعدة* لعرض قائمة الأوامر المتاحة.`;
 }
 
@@ -791,7 +835,8 @@ export async function connectWhatsApp() {
 • *سجل الرسائل* — آخر 20 رسالة
 • *وقف / تشغيل* — تفعيل/إيقاف الصيانة
 • *حظر [رقم] / إلغاء حظر [رقم]*
-• *ردّ [رقم أو معرف] [رسالة]* — رد مباشر لأي زائر
+• *ردّ [رقم] [رسالة]* — رسالة نصية مباشرة لأي شخص
+• *ارسل [رقم] [تعليمات]* — ناظم يصيغ ويرسل رسالة بأسلوبه
 • *مساعدة* — القائمة الكاملة
 
 ━━━━━━━━━━━━━━━━━
