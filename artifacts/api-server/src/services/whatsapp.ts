@@ -78,12 +78,14 @@ async function saveMessage(contactId: number, content: string, direction: "inbou
 }
 
 async function getRecentMessages(contactId: number, limit = 10) {
-  return db
+  // Fetch last N messages in chronological order (DESC fetch, then reverse)
+  const rows = await db
     .select()
     .from(messagesTable)
     .where(eq(messagesTable.contactId, contactId))
-    .orderBy(messagesTable.timestamp)
+    .orderBy(desc(messagesTable.timestamp))
     .limit(limit);
+  return rows.reverse();
 }
 
 // ─── Startup catch-up: reply to unanswered messages after reconnect ───────────
@@ -764,8 +766,34 @@ export async function connectWhatsApp() {
           await saveMessage(contact.id, text, "inbound");
           const isReturning = isAdmin;
           const greeting = isReturning
-            ? `🔐 *مرحباً مجدداً!*\n\nأنت بالفعل المشرف الرئيسي لهذا النظام.\n\n📋 أرسل *مساعدة* لعرض الأوامر المتاحة.`
-            : `🔐 *وضع المشرف مفعّل*\n\nمرحباً! رقمك (+${phone}) محفوظ الآن كمشرف رئيسي في النظام.\n\n📋 أرسل *مساعدة* لعرض جميع الأوامر المتاحة.`;
+            ? `🔐 *أهلاً مجدداً، صاحبي!*\n\nناظم في الخدمة — كلّمني بشكل طبيعي وسأفهمك.\nأرسل *مساعدة* لعرض قائمة الأوامر الكاملة.`
+            : `🔐 *وضع المشرف مفعّل — ناظم في خدمتك*
+
+رقمك *+${phone}* محفوظ كمشرف رئيسي. من الآن ناظم يستجيب لك بشكل مختلف تماماً عن باقي الأرقام.
+
+━━━━━━━━━━━━━━━━━
+📋 *أوامر النظام:*
+• *حالة* — تقرير كامل عن النظام
+• *إحصائيات* — أرقام النشاط
+• *جهات الاتصال* — من تواصل مع ناظم
+• *سجل الرسائل* — آخر 20 رسالة
+• *وقف / تشغيل* — تفعيل/إيقاف الصيانة
+• *حظر [رقم] / إلغاء حظر [رقم]*
+• *ردّ [رقم أو معرف] [رسالة]* — رد مباشر لأي زائر
+• *مساعدة* — القائمة الكاملة
+
+━━━━━━━━━━━━━━━━━
+🧠 *تحكم ذكي بالكلام الطبيعي:*
+كلّمني بشكل عادي وسأفهم وأطبّق:
+↪ "وقّف الردود" / "شغّل الردود"
+↪ "غيّر موديل الذكاء الاصطناعي إلى Groq"
+↪ "لا تقدّم نفسك في كل رسالة"
+↪ "كن أكثر رسمية مع الزوار"
+↪ "أضف لشخصيتك أنك تتحدث دائماً بالفرنسية"
+↪ أي تعليمات أخرى — سأفهمها وأطبّقها
+
+━━━━━━━━━━━━━━━━━
+ناظم جاهز — تكلّم معي كما تشاء 🤝`;
           await sock.sendMessage(jid, { text: greeting });
           await saveMessage(contact.id, greeting, "outbound", "system");
           return;
@@ -812,10 +840,23 @@ export async function connectWhatsApp() {
             if (fwdState.mode === "contact") {
               // ── Contact mode: notify admin right away (no message needed) ──
               const { label: senderLabel, replyCmd } = buildContactLabel(userName, contact.phone, pushName, isLidJid);
+
+              // Fetch last 4 messages for context (exclude the name just given)
+              const convoHistory = await getRecentMessages(contact.id, 6);
+              const contextLines = convoHistory
+                .filter(m => m.content.trim() !== userName.trim())
+                .slice(-4)
+                .map(m => `${m.direction === "inbound" ? "👤" : "🤖"} ${m.content.slice(0, 100)}${m.content.length > 100 ? "…" : ""}`)
+                .join("\n");
+              const contextSection = contextLines
+                ? `\n\n📝 *سياق المحادثة:*\n${contextLines}`
+                : "";
+
               const adminMsg =
                 `📞 *طلب تواصل عبر ناظم*\n\n` +
                 `👤 ${senderLabel}\n\n` +
-                `💬 يريد التواصل مع صاحب المشروع.`;
+                `💬 يريد التواصل مع صاحب المشروع.` +
+                contextSection;
 
               logger.info({ from: contact.phone, name: userName }, "Attempting contact notification to admin");
               const sent = await sendToAdminJid(adminMsg);
@@ -839,13 +880,26 @@ export async function connectWhatsApp() {
           }
 
           if (fwdState.step === "ask_msg") {
-            // User provided the message — send to admin with name
+            // User provided the message — send to admin with name + conversation context
             const msgContent = text.trim();
             const { label: senderLabel, replyCmd } = buildContactLabel(fwdState.name ?? "", contact.phone, pushName, isLidJid);
+
+            // Fetch last 4 messages for context (exclude the specific message content)
+            const convoHistory = await getRecentMessages(contact.id, 6);
+            const contextLines = convoHistory
+              .filter(m => m.content.trim() !== msgContent && m.content.trim() !== (fwdState.name ?? "").trim())
+              .slice(-4)
+              .map(m => `${m.direction === "inbound" ? "👤" : "🤖"} ${m.content.slice(0, 100)}${m.content.length > 100 ? "…" : ""}`)
+              .join("\n");
+            const contextSection = contextLines
+              ? `\n\n📝 *سياق المحادثة:*\n${contextLines}`
+              : "";
+
             const adminMsg =
               `📩 *رسالة من زائر عبر ناظم*\n\n` +
               `👤 ${senderLabel}\n\n` +
-              `💬 الرسالة:\n"${msgContent}"`;
+              `💬 الرسالة:\n"${msgContent}"` +
+              contextSection;
 
             logger.info({ from: contact.phone, name: fwdState.name }, "Attempting to forward visitor message to admin");
             const sent = await sendToAdminJid(adminMsg);
