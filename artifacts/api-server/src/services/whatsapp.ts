@@ -836,20 +836,76 @@ export async function connectWhatsApp() {
         // ── Contact/Forward-to-admin state machine (multi-turn) ──────
         const fwdState = pendingForwards.get(phone);
         if (fwdState) {
-          await saveMessage(contact.id, text, "inbound");
-          const userName = text.trim();
+          try {
+            await saveMessage(contact.id, text, "inbound");
+            const userName = text.trim();
 
-          if (fwdState.step === "ask_name") {
-            fwdState.name = userName;
+            if (fwdState.step === "ask_name") {
+              fwdState.name = userName;
 
-            if (fwdState.mode === "contact") {
-              // ── Contact mode: notify admin right away (no message needed) ──
-              const { label: senderLabel, replyCmd } = buildContactLabel(userName, contact.phone, pushName, isLidJid);
+              if (fwdState.mode === "contact") {
+                // ── Contact mode: notify admin right away ──
+                const { label: senderLabel, replyCmd } = buildContactLabel(userName, contact.phone, pushName, isLidJid);
 
-              // Fetch last 4 messages for context (exclude the name just given)
+                const convoHistory = await getRecentMessages(contact.id, 6);
+                const contextLines = convoHistory
+                  .filter(m => m.content.trim() !== userName.trim())
+                  .slice(-4)
+                  .map(m => `${m.direction === "inbound" ? "👤" : "🤖"} ${m.content.slice(0, 100)}${m.content.length > 100 ? "…" : ""}`)
+                  .join("\n");
+                const contextSection = contextLines
+                  ? `\n\n📝 *سياق المحادثة:*\n${contextLines}`
+                  : "";
+
+                const adminMsg =
+                  `📞 *طلب تواصل عبر ناظم*\n\n` +
+                  `👤 ${senderLabel}\n\n` +
+                  `💬 يريد التواصل مع صاحب المشروع.` +
+                  contextSection;
+
+                logger.info({ from: contact.phone, name: userName }, "Attempting contact notification to admin");
+                const sent = await sendToAdminJid(adminMsg);
+                if (sent) await sendToAdminJid(replyCmd);
+                logger.info({ sent }, "Admin contact notification result");
+
+                pendingForwards.delete(phone);
+
+                // Build confirmation — fetch contact info to include in reply
+                const cOwnerPhone = await getSetting("ownerPhone");
+                const cOwnerEmail = await getSetting("ownerEmail");
+                const contactDetails: string[] = [];
+                if (cOwnerPhone) contactDetails.push(`📱 واتساب: ${cOwnerPhone}`);
+                if (cOwnerEmail) contactDetails.push(`📧 إيميل: ${cOwnerEmail}`);
+                const detailsLine = contactDetails.length > 0
+                  ? `\n\nيمكنك أيضاً التواصل مباشرةً:\n${contactDetails.join("\n")}`
+                  : "";
+
+                const confirmMsg = sent
+                  ? `✅ تمّ إبلاغ صاحب المشروع باسمك يا *${userName}* — سيتواصل معك قريباً إن شاء الله 🤝${detailsLine}`
+                  : `⚠️ حدث خطأ تقني في الإرسال.${detailsLine || "\nيمكنك المحاولة مجدداً لاحقاً."}`;
+
+                logger.info({ jid, confirmMsg: confirmMsg.slice(0, 60) }, "Sending confirmation to visitor");
+                await sock.sendMessage(jid, { text: confirmMsg });
+                logger.info("Visitor confirmation sent ✅");
+                await saveMessage(contact.id, confirmMsg, "outbound", "system/contact");
+
+              } else {
+                // ── Forward mode: ask for message next ──
+                fwdState.step = "ask_msg";
+                const askMsg = `بارك الله فيك *${userName}* 🤝\nاكتب رسالتك وسأوصّلها لصاحب المشروع مباشرةً 📩`;
+                await sock.sendMessage(jid, { text: askMsg });
+                await saveMessage(contact.id, askMsg, "outbound", "system/forward");
+              }
+              return;
+            }
+
+            if (fwdState.step === "ask_msg") {
+              const msgContent = text.trim();
+              const { label: senderLabel, replyCmd } = buildContactLabel(fwdState.name ?? "", contact.phone, pushName, isLidJid);
+
               const convoHistory = await getRecentMessages(contact.id, 6);
               const contextLines = convoHistory
-                .filter(m => m.content.trim() !== userName.trim())
+                .filter(m => m.content.trim() !== msgContent && m.content.trim() !== (fwdState.name ?? "").trim())
                 .slice(-4)
                 .map(m => `${m.direction === "inbound" ? "👤" : "🤖"} ${m.content.slice(0, 100)}${m.content.length > 100 ? "…" : ""}`)
                 .join("\n");
@@ -858,64 +914,43 @@ export async function connectWhatsApp() {
                 : "";
 
               const adminMsg =
-                `📞 *طلب تواصل عبر ناظم*\n\n` +
+                `📩 *رسالة من زائر عبر ناظم*\n\n` +
                 `👤 ${senderLabel}\n\n` +
-                `💬 يريد التواصل مع صاحب المشروع.` +
+                `💬 الرسالة:\n"${msgContent}"` +
                 contextSection;
 
-              logger.info({ from: contact.phone, name: userName }, "Attempting contact notification to admin");
+              logger.info({ from: contact.phone, name: fwdState.name }, "Attempting to forward visitor message to admin");
               const sent = await sendToAdminJid(adminMsg);
               if (sent) await sendToAdminJid(replyCmd);
+              logger.info({ sent }, "Admin forward result");
 
               pendingForwards.delete(phone);
+
+              const fOwnerPhone = await getSetting("ownerPhone");
+              const fOwnerEmail = await getSetting("ownerEmail");
+              const fDetails: string[] = [];
+              if (fOwnerPhone) fDetails.push(`📱 واتساب: ${fOwnerPhone}`);
+              if (fOwnerEmail) fDetails.push(`📧 إيميل: ${fOwnerEmail}`);
+              const fDetailsLine = fDetails.length > 0
+                ? `\n\nيمكنك أيضاً التواصل مباشرةً:\n${fDetails.join("\n")}`
+                : "";
+
               const confirmMsg = sent
-                ? `✅ تم إبلاغ صاحب المشروع باسمك يا ${userName}، سيتواصل معك قريباً إن شاء الله 🤝`
-                : `⚠️ حدث خطأ تقني، يمكنك التواصل مباشرةً عبر المعلومات المتاحة.`;
+                ? `✅ وصلت رسالتك لصاحب المشروع — سيتواصل معك قريباً إن شاء الله 🙏${fDetailsLine}`
+                : `⚠️ حدث خطأ في الإرسال.${fDetailsLine || "\nجرّب مجدداً."}`;
+
+              logger.info({ jid, confirmMsg: confirmMsg.slice(0, 60) }, "Sending forward confirmation to visitor");
               await sock.sendMessage(jid, { text: confirmMsg });
-              await saveMessage(contact.id, confirmMsg, "outbound", "system/contact");
-
-            } else {
-              // ── Forward mode: ask for message next ──
-              fwdState.step = "ask_msg";
-              const askMsg = `شكراً ${userName} 🤝\nالآن اكتب رسالتك وأنا سأوصّلها لصاحب المشروع مباشرةً 📩`;
-              await sock.sendMessage(jid, { text: askMsg });
-              await saveMessage(contact.id, askMsg, "outbound", "system/forward");
+              logger.info("Visitor forward confirmation sent ✅");
+              await saveMessage(contact.id, confirmMsg, "outbound", "system/forward");
+              return;
             }
-            return;
-          }
-
-          if (fwdState.step === "ask_msg") {
-            // User provided the message — send to admin with name + conversation context
-            const msgContent = text.trim();
-            const { label: senderLabel, replyCmd } = buildContactLabel(fwdState.name ?? "", contact.phone, pushName, isLidJid);
-
-            // Fetch last 4 messages for context (exclude the specific message content)
-            const convoHistory = await getRecentMessages(contact.id, 6);
-            const contextLines = convoHistory
-              .filter(m => m.content.trim() !== msgContent && m.content.trim() !== (fwdState.name ?? "").trim())
-              .slice(-4)
-              .map(m => `${m.direction === "inbound" ? "👤" : "🤖"} ${m.content.slice(0, 100)}${m.content.length > 100 ? "…" : ""}`)
-              .join("\n");
-            const contextSection = contextLines
-              ? `\n\n📝 *سياق المحادثة:*\n${contextLines}`
-              : "";
-
-            const adminMsg =
-              `📩 *رسالة من زائر عبر ناظم*\n\n` +
-              `👤 ${senderLabel}\n\n` +
-              `💬 الرسالة:\n"${msgContent}"` +
-              contextSection;
-
-            logger.info({ from: contact.phone, name: fwdState.name }, "Attempting to forward visitor message to admin");
-            const sent = await sendToAdminJid(adminMsg);
-            if (sent) await sendToAdminJid(replyCmd);
-
+          } catch (fwdErr: any) {
+            logger.error({ err: fwdErr, phone, jid }, "Error in contact/forward state machine ❌");
             pendingForwards.delete(phone);
-            const confirmMsg = sent
-              ? `✅ وصلت رسالتك لصاحب المشروع، سيتواصل معك قريباً إن شاء الله 🤝`
-              : `⚠️ حدث خطأ في الإرسال، يمكنك التواصل مباشرةً عبر المعلومات المتاحة.`;
-            await sock.sendMessage(jid, { text: confirmMsg });
-            await saveMessage(contact.id, confirmMsg, "outbound", "system/forward");
+            try {
+              await sock.sendMessage(jid, { text: "⚠️ حدث خطأ غير متوقع. يمكنك المحاولة مجدداً." });
+            } catch {}
             return;
           }
         }
