@@ -250,11 +250,7 @@ Yazaki AI Table Reader يحوّل مخططات الأسلاك الكهربائي
 • دعم مهندسي التعديل: عند تغيير أي جزء من الكابل (أسلاك، موصلات، محطات) يجد المهندس التفاصيل الكاملة للمنتوج فوراً ويُجري التعديل بدقة وبدون خطأ.
 
 ⚡ قاعدة الرابط + بيانات الدخول — إلزامية بلا استثناء:
-في أي رسالة يُذكر فيها التطبيق أو يُسأل عن ميزاته أو آلية عمله أو كيفية استخدامه → أدمج دائماً في سياق ردك:
-🔗 ${publicLink || "(رابط التطبيق)"}
-🧑‍💼 مهندس: admin / admin
-👷 عامل: خط xjx4 / محطة sps2
-لا تضعها كسطر جاف منفصل — أدمجها بشكل طبيعي ضمن الرد مباشرة.
+في أي رسالة يُذكر فيها التطبيق أو يُسأل عن ميزاته أو آلية عمله أو كيفية استخدامه → أدمج دائماً في سياق ردك البيانات التالية (لا تضعها كسطر جاف منفصل — أدمجها بشكل طبيعي):
 ${demoSection}
 ${videoSection ? `\n${videoSection}` : ""}
 
@@ -313,17 +309,23 @@ ${contactBlock}
 }
 
 // Gemini fallback model chain
+// Removed: gemini-2.5-flash-preview-04-17 (404 — not found in v1beta)
 // Removed: gemini-2.0-flash-exp (404)
 // Removed: gemma-3-* (400 "Developer instruction not enabled" — no systemInstruction support)
 const GEMINI_MODELS = [
-  "gemini-2.5-flash-preview-04-17", // Flash 2.5 — latest (user: "flash 3.1")
-  "gemini-2.0-flash",               // Flash 2.0 — stable fallback
+  "gemini-2.0-flash",               // Flash 2.0 — stable
+  "gemini-2.0-flash-lite",          // lighter version, higher free quota
+  "gemini-1.5-flash",               // stable older generation
+  "gemini-1.5-flash-8b",            // smallest — highest free-tier quota
 ];
 
-// Groq fallback model chain — 2 models only, large daily quota
+// Groq fallback model chain — ordered by quota size
 const GROQ_MODELS = [
-  "llama-3.3-70b-versatile",                      // most reliable, large quota
-  "meta-llama/llama-4-scout-17b-16e-instruct",    // newer, good quota
+  "meta-llama/llama-4-scout-17b-16e-instruct",    // 500k TPD
+  "llama-3.3-70b-versatile",                      // 100k TPD
+  "llama-3.1-8b-instant",                         // 500k TPD — fast small model
+  "gemma2-9b-it",                                 // 500k TPD — Google Gemma on Groq
+  "mixtral-8x7b-32768",                           // 500k TPD — good reasoning
 ];
 
 // Detect quota / billing / rate-limit errors that should trigger fallback
