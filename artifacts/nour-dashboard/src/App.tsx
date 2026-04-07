@@ -11,22 +11,28 @@ import Messages from "@/pages/messages";
 import Whatsapp from "@/pages/whatsapp";
 import Settings from "@/pages/settings";
 import Broadcast from "@/pages/broadcast";
+import VideoTemplate from "@/components/video/VideoTemplate";
 
 const queryClient = new QueryClient();
 
 function Router() {
   return (
-    <Layout>
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/contacts" component={Contacts} />
-        <Route path="/messages" component={Messages} />
-        <Route path="/whatsapp" component={Whatsapp} />
-        <Route path="/settings" component={Settings} />
-        <Route path="/broadcast" component={Broadcast} />
-        <Route component={NotFound} />
-      </Switch>
-    </Layout>
+    <Switch>
+      <Route path="/video" component={VideoTemplate} />
+      <Route path="/.*">
+        <Layout>
+          <Switch>
+            <Route path="/" component={Dashboard} />
+            <Route path="/contacts" component={Contacts} />
+            <Route path="/messages" component={Messages} />
+            <Route path="/whatsapp" component={Whatsapp} />
+            <Route path="/settings" component={Settings} />
+            <Route path="/broadcast" component={Broadcast} />
+            <Route component={NotFound} />
+          </Switch>
+        </Layout>
+      </Route>
+    </Switch>
   );
 }
 
