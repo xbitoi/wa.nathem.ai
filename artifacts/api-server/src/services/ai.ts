@@ -80,8 +80,30 @@ const SLOGANS = [
   "بيانات دقيقة، انتاج بلا توقف",
   "خط الانتاج لا ينتظر — وناظم لا ينام",
   "نقرة واحدة تغني عن ساعات البحث",
-  "ببصيرة المؤمن وعزم التقني، نحيل الشتات البصري الى بنيان رقمي مرصوص",
+  "ببصيرة المؤمن وعزم العامل، نحيل الشتات البصري الى بنيان رقمي مرصوص",
 ];
+
+// Fisher-Yates shuffle — يخلط الشعارات عشوائياً عند التشغيل
+function shuffleArray<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// الطابور الدوار: كل الشعارات بترتيب عشوائي، لا تكرار حتى تنتهي ثم يُعاد الخلط
+let _sloganQueue: string[] = [];
+let _sloganIndex = 0;
+
+function getNextSlogan(): string {
+  if (_sloganIndex >= _sloganQueue.length) {
+    _sloganQueue = shuffleArray(SLOGANS);
+    _sloganIndex = 0;
+  }
+  return _sloganQueue[_sloganIndex++];
+}
 
 function buildSystemPrompt(params: {
   ownerName: string;
@@ -105,8 +127,8 @@ function buildSystemPrompt(params: {
   if (isFirstEver) {
     sloganInstruction = `• ⚡ تعليمة إلزامية: اذكر الشعار التالي مدمجاً بشكل طبيعي في كلامك — لا تقتبسه كعنوان منفصل، بل اجعله جزءاً من جملة حقيقية: "${MAIN_SLOGAN}"`;
   } else {
-    const randomSlogan = SLOGANS[Math.floor(Math.random() * SLOGANS.length)];
-    sloganInstruction = `• ⚡ تعليمة إلزامية لهذا الرد: اذكر هذا الشعار مدمجاً في جملة طبيعية من ردك — ليس كاقتباس منفصل، بل كجزء حقيقي من كلامك يناسب سياق الإجابة: "${randomSlogan}"`;
+    const nextSlogan = getNextSlogan();
+    sloganInstruction = `• ⚡ تعليمة إلزامية لهذا الرد: اذكر هذا الشعار مدمجاً في جملة طبيعية من ردك — ليس كاقتباس منفصل، بل كجزء حقيقي من كلامك يناسب سياق الإجابة: "${nextSlogan}"`;
   }
 
   const demoSection = `${publicLink ? `🔗 رابط التطبيق: ${publicLink}\n` : ""}بيانات الدخول التجريبية:
