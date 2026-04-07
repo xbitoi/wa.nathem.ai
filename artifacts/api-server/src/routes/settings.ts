@@ -12,12 +12,12 @@ const SENSITIVE_KEYS = new Set([
 ]);
 
 const KEY_LABELS: Record<string, string> = {
-  ownerName: "اسم صاحب المشروع",
+  ownerName: "اسم صاحب التطبيق",
   ownerEmail: "البريد الإلكتروني",
   ownerPhone: "رقم الهاتف",
-  projectName: "اسم المشروع",
-  projectDescription: "وصف المشروع",
-  projectLink: "رابط المشروع",
+  projectName: "اسم التطبيق",
+  projectDescription: "وصف التطبيق",
+  projectLink: "رابط التطبيق",
   demoVideoUrl: "فيديو شرح التطبيق",
   geminiApiKey:  "مفتاح Gemini API 1",
   geminiApiKey2: "مفتاح Gemini API 2",

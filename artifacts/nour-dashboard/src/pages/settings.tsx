@@ -740,7 +740,7 @@ export default function Settings() {
                   <AlertDialogDescription className="space-y-2">
                     <span className="block">سيتم حذف <strong>كل شيء</strong> من قاعدة البيانات:</span>
                     <span className="block text-right leading-7">
-                      🗑 جميع الإعدادات (اسم المشروع، API keys، الشخصية...)<br/>
+                      🗑 جميع الإعدادات (اسم التطبيق، API keys، الشخصية...)<br/>
                       🗑 رقم المشرف — سيُلغى وضع الخضوع<br/>
                       🗑 ذاكرة ناظم كاملة — كل المحادثات<br/>
                       🗑 جميع جهات الاتصال والرسائل
