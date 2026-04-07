@@ -21,7 +21,14 @@ export const GetWhatsappStatusResponse = zod.object({
   connected: zod.boolean(),
   phone: zod.string().nullish(),
   name: zod.string().nullish(),
-  status: zod.enum(["connected", "disconnected", "connecting", "qr_ready"]),
+  status: zod.enum([
+    "connected",
+    "disconnected",
+    "connecting",
+    "qr_ready",
+    "pairing_ready",
+  ]),
+  pairingCode: zod.string().nullish(),
 });
 
 /**
@@ -36,6 +43,27 @@ export const GetWhatsappQrResponse = zod.object({
  * @summary Disconnect WhatsApp session
  */
 export const DisconnectWhatsappResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string().optional(),
+});
+
+/**
+ * @summary Connect WhatsApp using phone number pairing code
+ */
+export const RequestWhatsappPairingCodeBody = zod.object({
+  phone: zod.string(),
+});
+
+export const RequestWhatsappPairingCodeResponse = zod.object({
+  success: zod.boolean(),
+  pairingCode: zod.string().nullish(),
+  message: zod.string().optional(),
+});
+
+/**
+ * @summary Clear the current QR code and reset connection
+ */
+export const ClearWhatsappQrResponse = zod.object({
   success: zod.boolean(),
   message: zod.string().optional(),
 });
@@ -209,11 +237,6 @@ export const GetSettingsResponse = zod.object({
   projectDescription: zod.string().optional(),
   projectLink: zod.string().optional(),
   geminiApiKey: zod.string().optional(),
-  geminiApiKey2: zod.string().optional(),
-  geminiApiKey3: zod.string().optional(),
-  geminiApiKey4: zod.string().optional(),
-  geminiApiKey5: zod.string().optional(),
-  geminiApiKey6: zod.string().optional(),
   geminiModel: zod.string().optional(),
   groqApiKey: zod.string().optional(),
   groqModel: zod.string().optional(),
@@ -236,11 +259,6 @@ export const UpdateSettingsBody = zod.object({
   projectDescription: zod.string().optional(),
   projectLink: zod.string().optional(),
   geminiApiKey: zod.string().optional(),
-  geminiApiKey2: zod.string().optional(),
-  geminiApiKey3: zod.string().optional(),
-  geminiApiKey4: zod.string().optional(),
-  geminiApiKey5: zod.string().optional(),
-  geminiApiKey6: zod.string().optional(),
   geminiModel: zod.string().optional(),
   groqApiKey: zod.string().optional(),
   groqModel: zod.string().optional(),
@@ -260,11 +278,6 @@ export const UpdateSettingsResponse = zod.object({
   projectDescription: zod.string().optional(),
   projectLink: zod.string().optional(),
   geminiApiKey: zod.string().optional(),
-  geminiApiKey2: zod.string().optional(),
-  geminiApiKey3: zod.string().optional(),
-  geminiApiKey4: zod.string().optional(),
-  geminiApiKey5: zod.string().optional(),
-  geminiApiKey6: zod.string().optional(),
   geminiModel: zod.string().optional(),
   groqApiKey: zod.string().optional(),
   groqModel: zod.string().optional(),

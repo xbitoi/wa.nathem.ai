@@ -14,4 +14,5 @@ export const WhatsappStatusStatus = {
   disconnected: "disconnected",
   connecting: "connecting",
   qr_ready: "qr_ready",
+  pairing_ready: "pairing_ready",
 } as const;

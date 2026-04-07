@@ -39,6 +39,8 @@ import type {
   SuccessResponse,
   UploadUrlRequest,
   UploadUrlResponse,
+  WhatsappPairingBody,
+  WhatsappPairingResponse,
   WhatsappQr,
   WhatsappStatus,
 } from "./api.schemas";
@@ -356,6 +358,177 @@ export const useDisconnectWhatsapp = <
   TContext
 > => {
   return useMutation(getDisconnectWhatsappMutationOptions(options));
+};
+
+/**
+ * @summary Connect WhatsApp using phone number pairing code
+ */
+export const getRequestWhatsappPairingCodeUrl = () => {
+  return `/api/whatsapp/request-pairing-code`;
+};
+
+export const requestWhatsappPairingCode = async (
+  whatsappPairingBody: WhatsappPairingBody,
+  options?: RequestInit,
+): Promise<WhatsappPairingResponse> => {
+  return customFetch<WhatsappPairingResponse>(
+    getRequestWhatsappPairingCodeUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(whatsappPairingBody),
+    },
+  );
+};
+
+export const getRequestWhatsappPairingCodeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestWhatsappPairingCode>>,
+    TError,
+    { data: BodyType<WhatsappPairingBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestWhatsappPairingCode>>,
+  TError,
+  { data: BodyType<WhatsappPairingBody> },
+  TContext
+> => {
+  const mutationKey = ["requestWhatsappPairingCode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestWhatsappPairingCode>>,
+    { data: BodyType<WhatsappPairingBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return requestWhatsappPairingCode(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RequestWhatsappPairingCodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestWhatsappPairingCode>>
+>;
+export type RequestWhatsappPairingCodeMutationBody =
+  BodyType<WhatsappPairingBody>;
+export type RequestWhatsappPairingCodeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Connect WhatsApp using phone number pairing code
+ */
+export const useRequestWhatsappPairingCode = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestWhatsappPairingCode>>,
+    TError,
+    { data: BodyType<WhatsappPairingBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof requestWhatsappPairingCode>>,
+  TError,
+  { data: BodyType<WhatsappPairingBody> },
+  TContext
+> => {
+  return useMutation(getRequestWhatsappPairingCodeMutationOptions(options));
+};
+
+/**
+ * @summary Clear the current QR code and reset connection
+ */
+export const getClearWhatsappQrUrl = () => {
+  return `/api/whatsapp/clear-qr`;
+};
+
+export const clearWhatsappQr = async (
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getClearWhatsappQrUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getClearWhatsappQrMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearWhatsappQr>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof clearWhatsappQr>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["clearWhatsappQr"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof clearWhatsappQr>>,
+    void
+  > = () => {
+    return clearWhatsappQr(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClearWhatsappQrMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearWhatsappQr>>
+>;
+
+export type ClearWhatsappQrMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Clear the current QR code and reset connection
+ */
+export const useClearWhatsappQr = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearWhatsappQr>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof clearWhatsappQr>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getClearWhatsappQrMutationOptions(options));
 };
 
 /**

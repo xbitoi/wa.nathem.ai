@@ -5,11 +5,12 @@ import { generateAIReply, generateAdminReply, getAllSettings } from "./ai";
 import fs from "fs";
 import path from "path";
 
-type WAStatus = "disconnected" | "connecting" | "qr_ready" | "connected";
+type WAStatus = "disconnected" | "connecting" | "qr_ready" | "pairing_ready" | "connected";
 
 interface WAState {
   status: WAStatus;
   qr: string | null;
+  pairingCode: string | null;
   phone: string | null;
   name: string | null;
   client: any | null;
@@ -18,6 +19,7 @@ interface WAState {
 const state: WAState = {
   status: "disconnected",
   qr: null,
+  pairingCode: null,
   phone: null,
   name: null,
   client: null,
@@ -689,11 +691,12 @@ function scheduleReconnect() {
   setTimeout(connectWhatsApp, delay);
 }
 
-export async function connectWhatsApp() {
+export async function connectWhatsApp(pairingPhone?: string) {
   if (state.status === "connected" || state.status === "connecting") return;
 
   state.status = "connecting";
   state.qr = null;
+  state.pairingCode = null;
 
   try {
     const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = await import("@whiskeysockets/baileys");
@@ -717,10 +720,26 @@ export async function connectWhatsApp() {
 
     sock.ev.on("creds.update", saveCreds);
 
+    // If a phone number is provided, request pairing code instead of QR
+    if (pairingPhone) {
+      try {
+        const rawCode = await sock.requestPairingCode(pairingPhone);
+        const formattedCode = rawCode.match(/.{1,4}/g)?.join("-") ?? rawCode;
+        state.pairingCode = formattedCode;
+        state.status = "pairing_ready";
+        logger.info({ phone: pairingPhone, code: formattedCode }, "Pairing code generated");
+      } catch (err) {
+        logger.error({ err }, "Failed to request pairing code");
+        state.status = "disconnected";
+        state.client = null;
+        throw err;
+      }
+    }
+
     sock.ev.on("connection.update", async (update: any) => {
       const { connection, lastDisconnect, qr } = update;
 
-      if (qr) {
+      if (qr && !pairingPhone) {
         const qrcode = await import("qrcode");
         const qrDataUrl = await qrcode.toDataURL(qr);
         state.qr = qrDataUrl;
@@ -732,6 +751,7 @@ export async function connectWhatsApp() {
         const offlineMs = disconnectedAt ? Date.now() - disconnectedAt : 0;
         state.status = "connected";
         state.qr = null;
+        state.pairingCode = null;
         reconnectAttempts = 0;
         disconnectedAt = null;
         const user = sock.user;
@@ -1169,12 +1189,28 @@ export async function disconnectWhatsApp() {
   }
   state.status = "disconnected";
   state.qr = null;
+  state.pairingCode = null;
   state.phone = null;
   state.name = null;
   if (fs.existsSync(SESSION_DIR)) {
     fs.rmSync(SESSION_DIR, { recursive: true, force: true });
   }
 }
+
+export async function clearWhatsAppQr() {
+  if (state.client) {
+    state.client.end(undefined);
+    state.client = null;
+  }
+  state.status = "disconnected";
+  state.qr = null;
+  state.pairingCode = null;
+  if (fs.existsSync(SESSION_DIR)) {
+    fs.rmSync(SESSION_DIR, { recursive: true, force: true });
+  }
+  setTimeout(connectWhatsApp, 500);
+}
+
 
 export async function sendWhatsAppMessage(phone: string, content: string) {
   if (state.status !== "connected" || !state.client) {
@@ -1193,6 +1229,7 @@ export function getWhatsAppStatus() {
     phone: state.phone,
     name: state.name,
     status: state.status,
+    pairingCode: state.pairingCode,
   };
 }
 

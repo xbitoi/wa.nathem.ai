@@ -74,6 +74,38 @@ paths:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
 
+  /whatsapp/request-pairing-code:
+    post:
+      operationId: requestWhatsappPairingCode
+      tags: [whatsapp]
+      summary: Connect WhatsApp using phone number pairing code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WhatsappPairingBody"
+      responses:
+        "200":
+          description: Pairing code generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WhatsappPairingResponse"
+
+  /whatsapp/clear-qr:
+    post:
+      operationId: clearWhatsappQr
+      tags: [whatsapp]
+      summary: Clear the current QR code and reset connection
+      responses:
+        "200":
+          description: QR cleared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
   /contacts:
     get:
       operationId: getContacts
@@ -426,7 +458,10 @@ components:
           nullable: true
         status:
           type: string
-          enum: [connected, disconnected, connecting, qr_ready]
+          enum: [connected, disconnected, connecting, qr_ready, pairing_ready]
+        pairingCode:
+          type: string
+          nullable: true
       required: [connected, status]
 
     WhatsappQr:
@@ -438,6 +473,25 @@ components:
         status:
           type: string
       required: [status]
+
+    WhatsappPairingBody:
+      type: object
+      properties:
+        phone:
+          type: string
+      required: [phone]
+
+    WhatsappPairingResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        pairingCode:
+          type: string
+          nullable: true
+        message:
+          type: string
+      required: [success]
 
     SuccessResponse:
       type: object

@@ -17,6 +17,7 @@ export const WhatsappStatusStatus = {
   disconnected: "disconnected",
   connecting: "connecting",
   qr_ready: "qr_ready",
+  pairing_ready: "pairing_ready",
 } as const;
 
 export interface WhatsappStatus {
@@ -24,11 +25,22 @@ export interface WhatsappStatus {
   phone?: string | null;
   name?: string | null;
   status: WhatsappStatusStatus;
+  pairingCode?: string | null;
 }
 
 export interface WhatsappQr {
   qr?: string | null;
   status: string;
+}
+
+export interface WhatsappPairingBody {
+  phone: string;
+}
+
+export interface WhatsappPairingResponse {
+  success: boolean;
+  pairingCode?: string | null;
+  message?: string;
 }
 
 export interface SuccessResponse {

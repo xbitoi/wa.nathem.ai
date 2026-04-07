@@ -12,4 +12,5 @@ export interface WhatsappStatus {
   phone?: string | null;
   name?: string | null;
   status: WhatsappStatusStatus;
+  pairingCode?: string | null;
 }

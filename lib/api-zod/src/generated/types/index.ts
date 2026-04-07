@@ -34,6 +34,8 @@ export * from "./stats";
 export * from "./successResponse";
 export * from "./uploadUrlRequest";
 export * from "./uploadUrlResponse";
+export * from "./whatsappPairingBody";
+export * from "./whatsappPairingResponse";
 export * from "./whatsappQr";
 export * from "./whatsappStatus";
 export * from "./whatsappStatusStatus";
