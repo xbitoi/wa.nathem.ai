@@ -26,6 +26,7 @@ export default function Whatsapp() {
 
   const [phoneInput, setPhoneInput] = useState("");
   const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [pairingPending, setPairingPending] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const isConnected = status?.connected;
@@ -44,12 +45,14 @@ export default function Whatsapp() {
     return () => clearInterval(interval);
   }, [isConnected, refetchStatus, refetchQr]);
 
-  // Sync pairing code from status
+  // Sync pairing code from status polling
   useEffect(() => {
     if (status?.pairingCode) {
       setPairingCode(status.pairingCode);
+      setPairingPending(false);
     } else if (isConnected) {
       setPairingCode(null);
+      setPairingPending(false);
     }
   }, [status?.pairingCode, isConnected]);
 
@@ -90,12 +93,19 @@ export default function Whatsapp() {
       {
         onSuccess: (data) => {
           if (data.pairingCode) {
+            // Code came back immediately (rare)
             setPairingCode(data.pairingCode);
+            setPairingPending(false);
             toast({ title: "✅ تم توليد الكود", description: "أدخل الكود في تطبيق واتساب." });
+          } else {
+            // Code is generating — polling will pick it up
+            setPairingPending(true);
+            toast({ title: "⏳ جارٍ التوليد...", description: "سيظهر الكود خلال ثوانٍ." });
           }
           refetchStatus();
         },
         onError: (err: any) => {
+          setPairingPending(false);
           toast({
             title: "❌ فشل توليد الكود",
             description: err?.message ?? "تحقق من الرقم وحاول مجدداً.",
@@ -225,6 +235,27 @@ export default function Whatsapp() {
               <TabsContent value="phone">
                 <div className="flex flex-col gap-5 py-4">
                   {!pairingCode ? (
+                    pairingPending ? (
+                      /* ── Waiting for code from polling ── */
+                      <div className="flex flex-col items-center gap-4 py-8">
+                        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                        <div className="text-center space-y-1">
+                          <p className="font-medium">جارٍ توليد كود الربط...</p>
+                          <p className="text-xs text-muted-foreground">
+                            يتصل واتساب بالخادم — سيظهر الكود خلال ثوانٍ
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => { setPairingPending(false); setPhoneInput(""); }}
+                          className="gap-2 mt-2"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          إلغاء
+                        </Button>
+                      </div>
+                    ) : (
                     <>
                       <div className="space-y-2">
                         <Label htmlFor="phone-input">رقم الهاتف (مع رمز الدولة)</Label>
@@ -248,12 +279,13 @@ export default function Whatsapp() {
                         className="w-full gap-2"
                       >
                         {pairingMutation.isPending ? (
-                          <><Loader2 className="h-4 w-4 animate-spin" /> جارٍ التوليد...</>
+                          <><Loader2 className="h-4 w-4 animate-spin" /> جارٍ الإرسال...</>
                         ) : (
                           <><KeyRound className="h-4 w-4" /> طلب كود الربط</>
                         )}
                       </Button>
                     </>
+                    )
                   ) : (
                     /* ── Pairing Code Display ── */
                     <div className="flex flex-col items-center gap-5 py-4">

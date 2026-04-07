@@ -27,16 +27,15 @@ router.post("/request-pairing-code", async (req, res) => {
     return res.status(400).json({ success: false, message: "رقم الهاتف مطلوب" });
   }
   const cleanPhone = phone.replace(/\D/g, "");
-  if (!cleanPhone) {
+  if (!cleanPhone || cleanPhone.length < 7) {
     return res.status(400).json({ success: false, message: "رقم الهاتف غير صالح" });
   }
-  try {
-    await connectWhatsApp(cleanPhone);
-    const status = getWhatsAppStatus();
-    res.json({ success: true, pairingCode: status.pairingCode, message: "تم توليد كود الربط" });
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err?.message ?? "فشل توليد كود الربط" });
-  }
+  // Start phone pairing asynchronously — the dashboard polls /status every 3s
+  // to pick up pairingCode once it's generated
+  connectWhatsApp(cleanPhone).catch((err) =>
+    req.log.error({ err }, "Phone pairing error")
+  );
+  res.json({ success: true, pairingCode: null, message: "جارٍ توليد الكود..." });
 });
 
 router.post("/clear-qr", async (req, res) => {

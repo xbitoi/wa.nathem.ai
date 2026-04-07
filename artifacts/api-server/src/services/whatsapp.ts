@@ -692,6 +692,20 @@ function scheduleReconnect() {
 }
 
 export async function connectWhatsApp(pairingPhone?: string) {
+  // Allow re-entry if requesting pairing code while in QR mode — kill existing socket first
+  if (pairingPhone && (state.status === "connecting" || state.status === "qr_ready")) {
+    if (state.client) {
+      state.client.end(undefined);
+      state.client = null;
+    }
+    state.status = "disconnected";
+    state.qr = null;
+    state.pairingCode = null;
+    if (fs.existsSync(SESSION_DIR)) {
+      fs.rmSync(SESSION_DIR, { recursive: true, force: true });
+    }
+  }
+
   if (state.status === "connected" || state.status === "connecting") return;
 
   state.status = "connecting";
@@ -720,31 +734,30 @@ export async function connectWhatsApp(pairingPhone?: string) {
 
     sock.ev.on("creds.update", saveCreds);
 
-    // If a phone number is provided, request pairing code instead of QR
-    if (pairingPhone) {
-      try {
-        const rawCode = await sock.requestPairingCode(pairingPhone);
-        const formattedCode = rawCode.match(/.{1,4}/g)?.join("-") ?? rawCode;
-        state.pairingCode = formattedCode;
-        state.status = "pairing_ready";
-        logger.info({ phone: pairingPhone, code: formattedCode }, "Pairing code generated");
-      } catch (err) {
-        logger.error({ err }, "Failed to request pairing code");
-        state.status = "disconnected";
-        state.client = null;
-        throw err;
-      }
-    }
-
     sock.ev.on("connection.update", async (update: any) => {
       const { connection, lastDisconnect, qr } = update;
 
-      if (qr && !pairingPhone) {
-        const qrcode = await import("qrcode");
-        const qrDataUrl = await qrcode.toDataURL(qr);
-        state.qr = qrDataUrl;
-        state.status = "qr_ready";
-        logger.info("QR code generated");
+      if (qr) {
+        if (pairingPhone) {
+          // QR event = WS ready — call requestPairingCode NOW (Baileys requirement)
+          try {
+            const rawCode = await sock.requestPairingCode(pairingPhone);
+            const formattedCode = rawCode.match(/.{1,4}/g)?.join("-") ?? rawCode;
+            state.pairingCode = formattedCode;
+            state.status = "pairing_ready";
+            logger.info({ phone: pairingPhone, code: formattedCode }, "Pairing code generated");
+          } catch (err) {
+            logger.error({ err }, "Failed to request pairing code");
+            state.status = "disconnected";
+            state.client = null;
+          }
+        } else {
+          const qrcode = await import("qrcode");
+          const qrDataUrl = await qrcode.toDataURL(qr);
+          state.qr = qrDataUrl;
+          state.status = "qr_ready";
+          logger.info("QR code generated");
+        }
       }
 
       if (connection === "open") {
