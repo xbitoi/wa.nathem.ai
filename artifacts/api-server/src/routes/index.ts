@@ -6,6 +6,7 @@ import messagesRouter from "./messages";
 import settingsRouter from "./settings";
 import statsRouter from "./stats";
 import storageRouter from "./storage";
+import { videoRouter } from "./video";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use("/messages", messagesRouter);
 router.use("/settings", settingsRouter);
 router.use("/stats", statsRouter);
 router.use("/storage", storageRouter);
+router.use("/video", videoRouter);
 
 export default router;
