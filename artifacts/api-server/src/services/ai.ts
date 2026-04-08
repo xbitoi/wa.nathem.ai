@@ -391,17 +391,34 @@ async function tryGemini(
 ): Promise<string> {
   const { GoogleGenerativeAI } = await import("@google/generative-ai");
   const genAI = new GoogleGenerativeAI(apiKey);
-  // systemInstruction must be set on getGenerativeModel, NOT on startChat
   const gModel = genAI.getGenerativeModel({
     model: modelName,
     systemInstruction: systemPrompt,
   });
-  const history = conversationHistory.map((m) => ({
-    role: m.role === "assistant" ? "model" : "user",
-    parts: [{ text: m.content }],
-  }));
-  const chat = gModel.startChat({ history });
-  const result = await chat.sendMessage(userMessage);
+
+  // Build full contents array: history + current user message
+  const raw: Array<{ role: "user" | "model"; parts: [{ text: string }] }> = [
+    ...conversationHistory.map((m) => ({
+      role: (m.role === "assistant" ? "model" : "user") as "user" | "model",
+      parts: [{ text: m.content }] as [{ text: string }],
+    })),
+    { role: "user" as const, parts: [{ text: userMessage }] },
+  ];
+
+  // Ensure starts with user turn
+  while (raw.length > 1 && raw[0].role !== "user") raw.shift();
+
+  // Collapse consecutive same-role turns (keep the later one to avoid invalid alternation)
+  const contents: typeof raw = [];
+  for (const turn of raw) {
+    if (contents.length > 0 && contents[contents.length - 1].role === turn.role) {
+      contents[contents.length - 1] = turn;
+    } else {
+      contents.push(turn);
+    }
+  }
+
+  const result = await gModel.generateContent({ contents });
   const reply = stripThinking(result.response.text());
   if (!reply) throw new Error("GEMINI_EMPTY_REPLY");
   return reply;

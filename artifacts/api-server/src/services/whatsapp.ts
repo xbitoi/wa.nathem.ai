@@ -1094,6 +1094,32 @@ export async function connectWhatsApp(pairingPhone?: string) {
             reply = result.reply;
             model = result.model;
 
+            // ── Static fallback: intercept video requests manually ──
+            if (model === "static/fallback") {
+              const videoKeywords = /فيديو|video|شرح|demo|ابعث|ارسل|send|شاهد|watch/i;
+              if (videoKeywords.test(text)) {
+                const allS = await getAllSettings();
+                const videoUrl = (allS["demoVideoUrl"] ?? "").trim();
+                if (videoUrl) {
+                  await sock.sendPresenceUpdate("paused", jid);
+                  await sock.sendMessage(jid, { text: reply });
+                  await saveMessage(contact.id, reply, "outbound", model);
+                  await new Promise(r => setTimeout(r, 600));
+                  const isDirectVideo = /\.(mp4|mov|avi|webm)(\?|$)/i.test(videoUrl);
+                  if (isDirectVideo) {
+                    await sock.sendMessage(jid, {
+                      video: { url: videoUrl },
+                      caption: "🎥 فيديو توضيحي — Yazaki AI Table Reader",
+                    });
+                  } else {
+                    await sock.sendMessage(jid, { text: `🎥 *فيديو شرح التطبيق:*\n${videoUrl}` });
+                  }
+                  await saveMessage(contact.id, `[video: ${videoUrl}]`, "outbound", model);
+                  return;
+                }
+              }
+            }
+
             // ── Intercept flow tags — start multi-turn state machine ────
             if (reply.includes("[CONTACT_OWNER_START]")) {
               reply = reply.replace(/\[CONTACT_OWNER_START\]/g, "").trim();
