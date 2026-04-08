@@ -43,6 +43,14 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   }
 });
 
-connectWhatsApp().catch((err) => logger.error({ err }, "Initial WhatsApp connect failed"));
+// Auto-connect WhatsApp only outside development mode.
+// Dev shares the same DB with production — auto-connecting in dev would kick the
+// production session (reason=440) causing an infinite disconnect loop.
+// In dev, connect manually from the dashboard if needed.
+if (process.env.NODE_ENV !== "development") {
+  connectWhatsApp().catch((err) => logger.error({ err }, "Initial WhatsApp connect failed"));
+} else {
+  logger.info("Development mode — WhatsApp auto-connect disabled to avoid conflicting with production session");
+}
 
 export default app;

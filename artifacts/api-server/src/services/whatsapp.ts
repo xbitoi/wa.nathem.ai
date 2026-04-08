@@ -815,6 +815,7 @@ export async function connectWhatsApp(pairingPhone?: string) {
       if (connection === "close") {
         const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
         const wasLoggedOut = reason === DisconnectReason.loggedOut;
+        const wasReplaced  = reason === DisconnectReason.connectionReplaced; // 440 — another session took over
         if (!disconnectedAt) disconnectedAt = Date.now(); // record first disconnect time
         state.status = "disconnected";
         state.phone = null;
@@ -823,7 +824,30 @@ export async function connectWhatsApp(pairingPhone?: string) {
         clearHeartbeat();
         logger.info({ reason, wasLoggedOut }, "WhatsApp disconnected");
 
-        if (wasLoggedOut) {
+        if (wasReplaced) {
+          // reason=440: another WhatsApp session (e.g. dev environment) took over.
+          // Reconnecting immediately creates an infinite kick loop — we must back off.
+          reconnectAttempts = 0;
+          const now = Date.now();
+          logoutTimestamps = logoutTimestamps.filter(t => now - t < LOGOUT_STORM_WINDOW_MS);
+          logoutTimestamps.push(now);
+
+          if (logoutTimestamps.length >= LOGOUT_STORM_LIMIT) {
+            // Kicked 3+ times → pause 10 minutes
+            logoutTimestamps = [];
+            logger.warn(
+              "Connection replaced storm detected (440 ×3) — another session keeps taking over. Pausing reconnect for 10 minutes."
+            );
+            state.qr = null;
+            state.pairingCode = null;
+            state.pairingPending = false;
+            setTimeout(connectWhatsApp, 10 * 60 * 1000);
+          } else {
+            // First or second kick — wait 30 seconds before trying again
+            logger.warn({ attempt: logoutTimestamps.length }, "Connection replaced (440) — waiting 30s before reconnect");
+            setTimeout(connectWhatsApp, 30_000);
+          }
+        } else if (wasLoggedOut) {
           // Clear old session
           if (fs.existsSync(SESSION_DIR)) {
             fs.rmSync(SESSION_DIR, { recursive: true, force: true });
