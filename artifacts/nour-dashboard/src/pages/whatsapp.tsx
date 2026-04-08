@@ -33,17 +33,18 @@ export default function Whatsapp() {
   const isPairingReady = status?.status === "pairing_ready";
   const isQrReady = !isConnected && qrData?.qr;
 
-  // Poll while not connected
+  // Poll while not connected — 1s when waiting for pairing code, 3s otherwise
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (!isConnected) {
+      const ms = pairingPending ? 1000 : 3000;
       interval = setInterval(() => {
         refetchStatus();
         refetchQr();
-      }, 3000);
+      }, ms);
     }
     return () => clearInterval(interval);
-  }, [isConnected, refetchStatus, refetchQr]);
+  }, [isConnected, pairingPending, refetchStatus, refetchQr]);
 
   // Sync pairing code from status polling
   useEffect(() => {

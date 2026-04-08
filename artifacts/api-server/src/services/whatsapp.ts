@@ -710,7 +710,8 @@ export async function connectWhatsApp(pairingPhone?: string) {
 
   state.status = "connecting";
   state.qr = null;
-  state.pairingCode = null;
+  // Do NOT clear pairingCode here — it stays until the user reads it or connects
+  // It gets cleared only in connection "open" (line below) or on a new phone pairing request
 
   try {
     const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = await import("@whiskeysockets/baileys");
