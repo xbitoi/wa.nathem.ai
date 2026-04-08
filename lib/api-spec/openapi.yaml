@@ -661,7 +661,19 @@ components:
           type: string
         projectLink:
           type: string
+        demoVideoUrl:
+          type: string
         geminiApiKey:
+          type: string
+        geminiApiKey2:
+          type: string
+        geminiApiKey3:
+          type: string
+        geminiApiKey4:
+          type: string
+        geminiApiKey5:
+          type: string
+        geminiApiKey6:
           type: string
         geminiModel:
           type: string
