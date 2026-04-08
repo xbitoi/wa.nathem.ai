@@ -85,6 +85,27 @@ async function saveMessage(contactId: number, content: string, direction: "inbou
   await db.insert(messagesTable).values({ contactId, content, direction, aiModel: aiModel ?? null });
 }
 
+// ── Send demo video — always as MP4 file, never as link ──────────────────────
+async function sendDemoVideo(sock: any, jid: string, videoUrl: string): Promise<void> {
+  try {
+    const res = await fetch(videoUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    await sock.sendMessage(jid, {
+      video: buf,
+      mimetype: "video/mp4",
+      caption: "🎥 فيديو توضيحي — Yazaki AI Table Reader",
+    });
+  } catch {
+    // If fetching fails, fall back to URL send with explicit mimetype
+    await sock.sendMessage(jid, {
+      video: { url: videoUrl },
+      mimetype: "video/mp4",
+      caption: "🎥 فيديو توضيحي — Yazaki AI Table Reader",
+    });
+  }
+}
+
 async function getRecentMessages(contactId: number, limit = 10) {
   // Fetch last N messages in chronological order (DESC fetch, then reverse)
   const rows = await db
@@ -1105,15 +1126,7 @@ export async function connectWhatsApp(pairingPhone?: string) {
                   await sock.sendMessage(jid, { text: reply });
                   await saveMessage(contact.id, reply, "outbound", model);
                   await new Promise(r => setTimeout(r, 600));
-                  const isDirectVideo = /\.(mp4|mov|avi|webm)(\?|$)/i.test(videoUrl);
-                  if (isDirectVideo) {
-                    await sock.sendMessage(jid, {
-                      video: { url: videoUrl },
-                      caption: "🎥 فيديو توضيحي — Yazaki AI Table Reader",
-                    });
-                  } else {
-                    await sock.sendMessage(jid, { text: `🎥 *فيديو شرح التطبيق:*\n${videoUrl}` });
-                  }
+                  await sendDemoVideo(sock, jid, videoUrl);
                   await saveMessage(contact.id, `[video: ${videoUrl}]`, "outbound", model);
                   return;
                 }
@@ -1142,17 +1155,9 @@ export async function connectWhatsApp(pairingPhone?: string) {
                   await sock.sendMessage(jid, { text: reply });
                   await saveMessage(contact.id, reply, "outbound", model);
                 }
-                // Small delay then send the video/link
+                // Small delay then send the video as MP4 file
                 await new Promise(r => setTimeout(r, 800));
-                const isDirectVideo = /\.(mp4|mov|avi|webm)(\?|$)/i.test(videoUrl);
-                if (isDirectVideo) {
-                  await sock.sendMessage(jid, {
-                    video: { url: videoUrl },
-                    caption: "🎥 فيديو توضيحي — Yazaki AI Table Reader",
-                  });
-                } else {
-                  await sock.sendMessage(jid, { text: `🎥 *فيديو شرح التطبيق:*\n${videoUrl}` });
-                }
+                await sendDemoVideo(sock, jid, videoUrl);
                 await saveMessage(contact.id, `[video: ${videoUrl}]`, "outbound", model);
                 return; // already sent — skip default sendMessage below
               }
