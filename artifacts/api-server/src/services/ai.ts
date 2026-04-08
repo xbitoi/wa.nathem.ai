@@ -45,7 +45,7 @@ function markModelFailed(provider: string, model: string) {
 }
 
 // ── Per-call timeout ─────────────────────────────────────────────────────────
-const AI_TIMEOUT_MS = 9_000;
+const AI_TIMEOUT_MS = 6_000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([
@@ -345,12 +345,13 @@ _${activeSlogan}_
 }
 
 // Gemini fallback model chain — ordered by capability (best first)
-// Verified available via ListModels on 2026-04-05
+// Updated 2026-04-08: removed gemini-3.1-flash-lite-preview (timeout), gemini-2.5-flash-preview-04-17 (404)
 const GEMINI_MODELS = [
-  "gemini-3.1-flash-lite-preview",  // Flash 3.1 — latest generation
   "gemini-2.5-flash",               // Flash 2.5 — strong & stable
   "gemini-2.0-flash",               // Flash 2.0 — reliable fallback
   "gemini-2.0-flash-lite",          // Flash 2.0 Lite — highest free-quota
+  "gemini-1.5-flash",               // Flash 1.5 — extra fallback
+  "gemini-1.5-flash-8b",            // Flash 1.5 8B — lightest fallback
 ];
 
 // Groq fallback model chain — ordered by quota size
