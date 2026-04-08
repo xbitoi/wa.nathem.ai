@@ -922,12 +922,24 @@ export async function connectWhatsApp(pairingPhone?: string) {
       const text = cleanText(rawText);
       if (!text) return;
 
-      // ── Pre-fetch all settings in parallel to minimise DB latency ──
-      const [contact, adminPhone, maintenanceModeStr, autoReplySetting] = await Promise.all([
+      // ── Show typing indicator immediately — before any DB work ──
+      sock.sendPresenceUpdate("composing", jid).catch(() => {});
+
+      // ── Pre-fetch all settings + recent history in parallel to minimise DB latency ──
+      const [contact, adminPhone, maintenanceModeStr, autoReplySetting, _earlyHistory] = await Promise.all([
         upsertContact(phone, pushName),
         getSetting("adminPhone"),
         getSetting("maintenanceMode"),
         getSetting("autoReply"),
+        // Start fetching conversation history early — reused later for AI reply
+        (async () => {
+          try {
+            // We don't have contact.id yet, so we look it up by phone
+            const rows = await db.select().from(contactsTable).where(eq(contactsTable.phone, phone)).limit(1);
+            if (!rows.length) return null;
+            return await getRecentMessages(rows[0].id, 6);
+          } catch { return null; }
+        })(),
       ]);
 
       // Normalize stored admin phone (strip @lid / @s.whatsapp.net if present)
@@ -1121,8 +1133,8 @@ export async function connectWhatsApp(pairingPhone?: string) {
         }
         // ─────────────────────────────────────────────────────────────
 
-        // Fetch last 6 messages for richer conversation context
-        const previousMsgs = await getRecentMessages(contact.id, 6);
+        // Use history fetched early in parallel (fallback to a fresh query if not available)
+        const previousMsgs = _earlyHistory ?? await getRecentMessages(contact.id, 6);
 
         let history = previousMsgs.map((m) => ({
           role: m.direction === "inbound" ? ("user" as const) : ("assistant" as const),
@@ -1139,9 +1151,6 @@ export async function connectWhatsApp(pairingPhone?: string) {
         await saveMessage(contact.id, text, "inbound");
 
         try {
-          // ── Show typing indicator while AI is generating ──
-          await sock.sendPresenceUpdate("composing", jid);
-
           let reply: string;
           let model: string;
 
