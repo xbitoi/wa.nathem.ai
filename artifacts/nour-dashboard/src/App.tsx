@@ -11,6 +11,7 @@ import Messages from "@/pages/messages";
 import Whatsapp from "@/pages/whatsapp";
 import Settings from "@/pages/settings";
 import Broadcast from "@/pages/broadcast";
+import Logs from "@/pages/logs";
 import VideoTemplate from "@/components/video/VideoTemplate";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ function Router() {
             <Route path="/whatsapp" component={Whatsapp} />
             <Route path="/settings" component={Settings} />
             <Route path="/broadcast" component={Broadcast} />
+            <Route path="/logs" component={Logs} />
             <Route component={NotFound} />
           </Switch>
         </Layout>

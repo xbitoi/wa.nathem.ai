@@ -193,6 +193,40 @@ export interface ErrorEnvelope {
   error: string;
 }
 
+export type SystemLogLevel =
+  (typeof SystemLogLevel)[keyof typeof SystemLogLevel];
+
+export const SystemLogLevel = {
+  info: "info",
+  warn: "warn",
+  error: "error",
+  success: "success",
+} as const;
+
+export type SystemLogCategory =
+  (typeof SystemLogCategory)[keyof typeof SystemLogCategory];
+
+export const SystemLogCategory = {
+  whatsapp: "whatsapp",
+  ai: "ai",
+  system: "system",
+} as const;
+
+export interface SystemLog {
+  id: number;
+  level: SystemLogLevel;
+  category: SystemLogCategory;
+  event: string;
+  message: string;
+  details?: string | null;
+  timestamp: string;
+}
+
+export interface SystemLogsResponse {
+  logs: SystemLog[];
+  total: number;
+}
+
 export interface ClearDataResponse {
   success: boolean;
   deleted: number;
@@ -230,4 +264,11 @@ export type GetGeminiModelsParams = {
 
 export type GetGroqModelsParams = {
   key: string;
+};
+
+export type GetSystemLogsParams = {
+  limit?: number;
+  offset?: number;
+  category?: string;
+  level?: string;
 };

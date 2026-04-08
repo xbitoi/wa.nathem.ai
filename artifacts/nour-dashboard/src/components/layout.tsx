@@ -1,15 +1,16 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Users, MessageSquare, Phone, Settings, Send } from "lucide-react";
+import { LayoutDashboard, Users, MessageSquare, Phone, Settings, Send, ScrollText } from "lucide-react";
 import { ReactNode } from "react";
 import { useGetWhatsappStatus } from "@workspace/api-client-react";
 
 const navigation = [
-  { name: "الرئيسية", nameEn: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "جهات الاتصال", nameEn: "Contacts", href: "/contacts", icon: Users },
-  { name: "الرسائل", nameEn: "Messages", href: "/messages", icon: MessageSquare },
-  { name: "إرسال", nameEn: "Broadcast", href: "/broadcast", icon: Send },
-  { name: "واتساب", nameEn: "WhatsApp", href: "/whatsapp", icon: Phone },
-  { name: "إعدادات", nameEn: "Settings", href: "/settings", icon: Settings },
+  { name: "الرئيسية",    nameEn: "Dashboard", href: "/",         icon: LayoutDashboard },
+  { name: "جهات الاتصال", nameEn: "Contacts",  href: "/contacts", icon: Users },
+  { name: "الرسائل",     nameEn: "Messages",  href: "/messages", icon: MessageSquare },
+  { name: "إرسال",       nameEn: "Broadcast", href: "/broadcast", icon: Send },
+  { name: "واتساب",      nameEn: "WhatsApp",  href: "/whatsapp", icon: Phone },
+  { name: "سجل النشاط",  nameEn: "Logs",      href: "/logs",     icon: ScrollText },
+  { name: "إعدادات",     nameEn: "Settings",  href: "/settings", icon: Settings },
 ];
 
 export function Layout({ children }: { children: ReactNode }) {

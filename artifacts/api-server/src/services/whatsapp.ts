@@ -3,6 +3,7 @@ import { db, contactsTable, messagesTable, settingsTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
 import { generateAIReply, generateAdminReply, getAllSettings } from "./ai";
 import { backupSession, restoreSessionIfMissing, clearSessionBackup } from "./whatsappSession";
+import { logEvent } from "./logs";
 import fs from "fs";
 import path from "path";
 
@@ -805,6 +806,7 @@ export async function connectWhatsApp(pairingPhone?: string) {
         state.phone = user?.id?.split(":")[0] ?? null;
         state.name = user?.name ?? null;
         logger.info({ phone: state.phone, offlineMs }, "WhatsApp connected");
+        logEvent("success", "whatsapp", "wa_connected", `اتصل واتساب — ${state.phone ?? ""}`, { phone: state.phone, name: state.name, offlineMs });
         startHeartbeat(sock);
         // Only run catch-up if we were offline for more than 60 seconds (real gap, not quick reconnect)
         if (offlineMs > 60_000) {
@@ -841,10 +843,12 @@ export async function connectWhatsApp(pairingPhone?: string) {
             state.qr = null;
             state.pairingCode = null;
             state.pairingPending = false;
+            logEvent("error", "whatsapp", "wa_replaced_storm", "جلسة أخرى استولت على الاتصال 3 مرات — إيقاف مؤقت 10 دقائق", { reason: 440 });
             setTimeout(connectWhatsApp, 10 * 60 * 1000);
           } else {
             // First or second kick — wait 30 seconds before trying again
             logger.warn({ attempt: logoutTimestamps.length }, "Connection replaced (440) — waiting 30s before reconnect");
+            logEvent("warn", "whatsapp", "wa_replaced", "جلسة أخرى استولت على الاتصال — إعادة محاولة بعد 30 ثانية", { reason: 440, attempt: logoutTimestamps.length });
             setTimeout(connectWhatsApp, 30_000);
           }
         } else if (wasLoggedOut) {
@@ -870,13 +874,16 @@ export async function connectWhatsApp(pairingPhone?: string) {
             state.qr = null;
             state.pairingCode = null;
             state.pairingPending = false;
+            logEvent("error", "whatsapp", "wa_logout_storm", "تسجيل خروج متكرر — إيقاف مؤقت 5 دقائق", { reason });
             // Wait 5 minutes before allowing reconnect
             setTimeout(connectWhatsApp, 5 * 60 * 1000);
           } else {
+            logEvent("warn", "whatsapp", "wa_logged_out", "تم تسجيل الخروج من واتساب", { reason });
             setTimeout(connectWhatsApp, 1500);
           }
         } else {
           // Network/server issue — reconnect with exponential backoff
+          logEvent("warn", "whatsapp", "wa_disconnected", `انقطع الاتصال (${reason ?? "unknown"}) — إعادة المحاولة`, { reason });
           scheduleReconnect();
         }
       }

@@ -21,6 +21,8 @@ tags:
     description: Dashboard statistics
   - name: Storage
     description: Object storage upload and serving endpoints.
+  - name: logs
+    description: System activity logs
 paths:
   /healthz:
     get:
@@ -436,6 +438,50 @@ paths:
                 items:
                   $ref: "#/components/schemas/ActivityPoint"
 
+  /logs:
+    get:
+      operationId: getSystemLogs
+      tags: [logs]
+      summary: Get system activity logs
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+        - in: query
+          name: category
+          schema:
+            type: string
+        - in: query
+          name: level
+          schema:
+            type: string
+      responses:
+        "200":
+          description: System logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemLogsResponse"
+
+    delete:
+      operationId: clearSystemLogs
+      tags: [logs]
+      summary: Clear all system logs
+      responses:
+        "200":
+          description: Logs cleared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClearDataResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -754,6 +800,40 @@ components:
       properties:
         error:
           type: string
+
+    SystemLog:
+      type: object
+      required: [id, level, category, event, message, timestamp]
+      properties:
+        id:
+          type: integer
+        level:
+          type: string
+          enum: [info, warn, error, success]
+        category:
+          type: string
+          enum: [whatsapp, ai, system]
+        event:
+          type: string
+        message:
+          type: string
+        details:
+          type: string
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+
+    SystemLogsResponse:
+      type: object
+      required: [logs, total]
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/SystemLog"
+        total:
+          type: integer
 
     ClearDataResponse:
       type: object

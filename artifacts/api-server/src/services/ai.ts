@@ -1,6 +1,7 @@
 import { logger } from "../lib/logger";
 import { db, settingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { logEvent } from "./logs";
 
 // ── Settings cache (30 second TTL) ─────────────────────────────────────────
 let _settingsCache: Record<string, string | null> | null = null;
@@ -622,20 +623,31 @@ export async function generateAIReply(
         }
         // ✅ Success — remember this provider+model for next time
         markProviderSuccess(label, model);
+        logEvent("success", "ai", "ai_success", `نجح النموذج ${logLabel}`, { provider: label, model });
         return { reply: stripExtraSuggestionBlocks(reply), model: logLabel };
       } catch (err: any) {
         const reason = err?.message ?? String(err);
         errors.push(`${label}/${model}: ${reason}`);
         logger.warn({ provider: label, model, reason }, "AI model failed, trying next");
-        if (isQuotaError(err) || reason.includes("TIMEOUT")) {
+        const isQuota = isQuotaError(err);
+        if (isQuota || reason.includes("TIMEOUT")) {
           markModelFailed(label, model);
         }
+        const shortReason = isQuota
+          ? "تجاوز الحصة اليومية (429)"
+          : reason.includes("503")
+          ? "الخادم مشغول (503)"
+          : reason.includes("TIMEOUT")
+          ? "انتهت المهلة"
+          : reason.slice(0, 120);
+        logEvent("warn", "ai", "ai_model_failed", `فشل ${logLabel} — ${shortReason}`, { provider: label, model, reason: shortReason });
       }
     }
   }
 
   // All providers exhausted — static fallback
   logger.error({ errors }, "All AI providers failed, using static fallback");
+  logEvent("error", "ai", "ai_all_failed", "انتهت جميع النماذج والمفاتيح — رد ثابت", { errors });
   const reply = buildStaticFallback({ ownerName: _ownerName, ownerPhone: _ownerPhone, ownerEmail: _ownerEmail, projectLink: _projectLink });
   return { reply, model: "static/fallback" };
 }

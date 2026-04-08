@@ -384,3 +384,40 @@ export const GetActivityResponseItem = zod.object({
   outbound: zod.number(),
 });
 export const GetActivityResponse = zod.array(GetActivityResponseItem);
+
+/**
+ * @summary Get system activity logs
+ */
+export const getSystemLogsQueryLimitDefault = 100;
+export const getSystemLogsQueryOffsetDefault = 0;
+
+export const GetSystemLogsQueryParams = zod.object({
+  limit: zod.coerce.number().default(getSystemLogsQueryLimitDefault),
+  offset: zod.coerce.number().default(getSystemLogsQueryOffsetDefault),
+  category: zod.coerce.string().optional(),
+  level: zod.coerce.string().optional(),
+});
+
+export const GetSystemLogsResponse = zod.object({
+  logs: zod.array(
+    zod.object({
+      id: zod.number(),
+      level: zod.enum(["info", "warn", "error", "success"]),
+      category: zod.enum(["whatsapp", "ai", "system"]),
+      event: zod.string(),
+      message: zod.string(),
+      details: zod.string().nullish(),
+      timestamp: zod.coerce.date(),
+    }),
+  ),
+  total: zod.number(),
+});
+
+/**
+ * @summary Clear all system logs
+ */
+export const ClearSystemLogsResponse = zod.object({
+  success: zod.boolean(),
+  deleted: zod.number(),
+  message: zod.string(),
+});

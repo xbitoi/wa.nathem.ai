@@ -31,12 +31,14 @@ import type {
   GetGeminiModelsParams,
   GetGroqModelsParams,
   GetMessagesParams,
+  GetSystemLogsParams,
   HealthStatus,
   MessagesListResponse,
   SendMessageBody,
   Settings,
   Stats,
   SuccessResponse,
+  SystemLogsResponse,
   UploadUrlRequest,
   UploadUrlResponse,
   WhatsappPairingBody,
@@ -1903,3 +1905,178 @@ export function useGetActivity<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Get system activity logs
+ */
+export const getGetSystemLogsUrl = (params?: GetSystemLogsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/logs?${stringifiedParams}`
+    : `/api/logs`;
+};
+
+export const getSystemLogs = async (
+  params?: GetSystemLogsParams,
+  options?: RequestInit,
+): Promise<SystemLogsResponse> => {
+  return customFetch<SystemLogsResponse>(getGetSystemLogsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSystemLogsQueryKey = (params?: GetSystemLogsParams) => {
+  return [`/api/logs`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetSystemLogsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSystemLogs>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetSystemLogsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSystemLogs>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSystemLogsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSystemLogs>>> = ({
+    signal,
+  }) => getSystemLogs(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSystemLogs>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSystemLogsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSystemLogs>>
+>;
+export type GetSystemLogsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get system activity logs
+ */
+
+export function useGetSystemLogs<
+  TData = Awaited<ReturnType<typeof getSystemLogs>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetSystemLogsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSystemLogs>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSystemLogsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Clear all system logs
+ */
+export const getClearSystemLogsUrl = () => {
+  return `/api/logs`;
+};
+
+export const clearSystemLogs = async (
+  options?: RequestInit,
+): Promise<ClearDataResponse> => {
+  return customFetch<ClearDataResponse>(getClearSystemLogsUrl(), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getClearSystemLogsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearSystemLogs>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof clearSystemLogs>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["clearSystemLogs"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof clearSystemLogs>>,
+    void
+  > = () => {
+    return clearSystemLogs(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClearSystemLogsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearSystemLogs>>
+>;
+
+export type ClearSystemLogsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Clear all system logs
+ */
+export const useClearSystemLogs = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearSystemLogs>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof clearSystemLogs>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getClearSystemLogsMutationOptions(options));
+};
