@@ -31,6 +31,15 @@ async function getSetting(key: string): Promise<string | null> {
 const failedModels = new Map<string, number>();
 const CIRCUIT_BREAKER_MS = 3 * 60 * 1000;
 
+// ── Sticky provider — remember last successful key+model, start from there ──
+let _stickyLabel: string | null = null;
+let _stickyModel: string | null = null;
+
+function markProviderSuccess(label: string, model: string) {
+  _stickyLabel = label;
+  _stickyModel = model;
+}
+
 function isModelCoolingDown(provider: string, model: string): boolean {
   const key = `${provider}/${model}`;
   const failedAt = failedModels.get(key);
@@ -571,12 +580,27 @@ export async function generateAIReply(
 
   const errors: string[] = [];
 
-  for (const { provider, label, apiKey, models } of providerChain) {
+  // ── Rotate providerChain to start from last successful provider (sticky) ──
+  const stickyProviderIdx = _stickyLabel
+    ? providerChain.findIndex(p => p.label === _stickyLabel)
+    : -1;
+  const startP = stickyProviderIdx !== -1 ? stickyProviderIdx : 0;
+  const rotatedChain = [...providerChain.slice(startP), ...providerChain.slice(0, startP)];
+
+  for (const { provider, label, apiKey, models } of rotatedChain) {
     if (!apiKey) {
       errors.push(`${label}: no API key`);
       continue;
     }
-    for (const model of models) {
+
+    // Rotate models to start from last successful model (only for the sticky provider)
+    const stickyModelIdx = (label === _stickyLabel && _stickyModel)
+      ? models.findIndex(m => m === _stickyModel)
+      : -1;
+    const startM = stickyModelIdx !== -1 ? stickyModelIdx : 0;
+    const rotatedModels = [...models.slice(startM), ...models.slice(0, startM)];
+
+    for (const model of rotatedModels) {
       // Circuit breaker: keyed by label (includes key index) + model
       if (isModelCoolingDown(label, model)) {
         errors.push(`${label}/${model}: skipped (cooling down)`);
@@ -596,6 +620,8 @@ export async function generateAIReply(
             AI_TIMEOUT_MS, logLabel
           );
         }
+        // ✅ Success — remember this provider+model for next time
+        markProviderSuccess(label, model);
         return { reply: stripExtraSuggestionBlocks(reply), model: logLabel };
       } catch (err: any) {
         const reason = err?.message ?? String(err);
