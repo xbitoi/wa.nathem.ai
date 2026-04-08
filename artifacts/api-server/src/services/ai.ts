@@ -347,11 +347,11 @@ _${activeSlogan}_
 // Gemini fallback model chain — ordered by capability (best first)
 // Updated 2026-04-08: removed gemini-3.1-flash-lite-preview (timeout), gemini-2.5-flash-preview-04-17 (404)
 const GEMINI_MODELS = [
-  "gemini-2.5-flash",               // Flash 2.5 — strong & stable
+  "gemini-3.1-pro",                 // Pro 3.1 — latest generation
+  "gemini-3-pro",                   // Pro 3.0 — strong fallback
+  "gemini-2.5-flash",               // Flash 2.5 — fast & stable
   "gemini-2.0-flash",               // Flash 2.0 — reliable fallback
   "gemini-2.0-flash-lite",          // Flash 2.0 Lite — highest free-quota
-  "gemini-1.5-flash",               // Flash 1.5 — extra fallback
-  "gemini-1.5-flash-8b",            // Flash 1.5 8B — lightest fallback
 ];
 
 // Groq fallback model chain — ordered by quota size
