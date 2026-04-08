@@ -123,13 +123,9 @@ function buildSystemPrompt(params: {
   // - First message → MAIN_SLOGAN (mandatory)
   // - Every other message → a random slogan from the list (mandatory, contextually woven in)
   const isFirstEver = messageCount === 0 && !isReturningUser;
-  let sloganInstruction = "";
-  if (isFirstEver) {
-    sloganInstruction = `• ⚡ تعليمة إلزامية: اذكر الشعار التالي مدمجاً بشكل طبيعي في كلامك — لا تقتبسه كعنوان منفصل، بل اجعله جزءاً من جملة حقيقية: "${MAIN_SLOGAN}"`;
-  } else {
-    const nextSlogan = getNextSlogan();
-    sloganInstruction = `• ⚡ تعليمة إلزامية لهذا الرد: اذكر هذا الشعار مدمجاً في جملة طبيعية من ردك — ليس كاقتباس منفصل، بل كجزء حقيقي من كلامك يناسب سياق الإجابة: "${nextSlogan}"`;
-  }
+  const activeSlogan = isFirstEver ? MAIN_SLOGAN : getNextSlogan();
+  const sloganInstruction = `• ⚡ تعليمة إلزامية — الشعار في نهاية الرد فقط: ضع الشعار التالي في سطر مستقل بصيغة مائلة (_نص_) مباشرة قبل سطر "🏭 YAZAKI AI ⚡ 23205" — لا تضعه في وسط الرد ولا تحذفه:
+_${activeSlogan}_`;
 
   const demoSection = `${publicLink ? `🔗 رابط التطبيق: ${publicLink}\n` : ""}بيانات الدخول التجريبية:
 • Admin: username: admin / password: admin
@@ -315,6 +311,7 @@ ${contactBlock}
   ❷  ${messageCount % 3 === 2 ? "تعرف على صاحب التطبيق 👤" : "[اقتراح سياقي فضولي مختلف عن ❶ — جانب آخر من التطبيق أو السؤال]"}
   ❸  لديك سوال اسئلني عن اي شي
 
+_${activeSlogan}_
 🏭 YAZAKI AI ⚡ 23205
 
 قواعد الاقتراحات:
