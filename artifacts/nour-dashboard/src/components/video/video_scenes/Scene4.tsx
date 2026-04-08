@@ -6,66 +6,78 @@ export function Scene4() {
 
   useEffect(() => {
     const timers = [
-      setTimeout(() => setPhase(1), 200),
-      setTimeout(() => setPhase(2), 800),
-      setTimeout(() => setPhase(3), 1600),
-      setTimeout(() => setPhase(4), 2400),
-      setTimeout(() => setPhase(5), 4000),
+      setTimeout(() => setPhase(1), 300),
+      setTimeout(() => setPhase(2), 1000),
+      setTimeout(() => setPhase(3), 1700),
+      setTimeout(() => setPhase(4), 2600),
     ];
     return () => timers.forEach(t => clearTimeout(t));
   }, []);
 
+  const features = [
+    "بيانات دقيقة",
+    "وصول فوري",
+    "إنتاج بلا توقف"
+  ];
+
   return (
     <motion.div 
-      className="absolute inset-0 flex flex-col items-center justify-center z-10"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0, filter: 'blur(20px)', scale: 1.1 }}
-      transition={{ duration: 1 }}
+      className="absolute inset-0 flex items-center justify-center z-10"
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, x: '-10vw', filter: 'blur(10px)' }}
+      transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
     >
-      {/* Scanning effect background */}
-      <motion.div 
-        className="absolute inset-0 bg-blue-500/10 pointer-events-none mix-blend-screen"
-        initial={{ opacity: 0, top: '-100%' }}
-        animate={phase >= 1 ? { opacity: [0, 0.5, 0], top: ['-100%', '100%'] } : {}}
-        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-      />
-      <div className="absolute inset-0 border-y-2 border-blue-500/20" />
+      <div className="absolute inset-0 flex">
+        {/* Left half: Digital data image */}
+        <motion.div 
+          className="w-[45%] h-full relative"
+          initial={{ x: '-100%' }}
+          animate={{ x: 0 }}
+          transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <img 
+            src={`${import.meta.env.BASE_URL}images/digital-data.png`} 
+            alt="Digital Data" 
+            className="w-full h-full object-cover mix-blend-screen opacity-60"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent to-[#001a33]" />
+        </motion.div>
+        {/* Right half background */}
+        <div className="w-[55%] h-full bg-[#001a33]/90 backdrop-blur-md" />
+      </div>
 
-      <div className="flex flex-col items-center justify-center h-full max-w-[80vw]">
-        <div className="flex gap-[4vw] mb-12 items-center">
-          {['Reads', 'Understands', 'Responds'].map((word, i) => (
+      <div className="absolute right-[10vw] top-1/2 -translate-y-1/2 w-[40vw] flex flex-col items-end text-right z-20">
+        <motion.div
+          className="w-[3vw] h-[3vw] border-t-4 border-l-4 border-[#FFB800] mb-8"
+          initial={{ opacity: 0, scale: 0 }}
+          animate={phase >= 1 ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0 }}
+          transition={{ type: "spring", stiffness: 300, damping: 25 }}
+        />
+
+        <div className="flex flex-col gap-[3vh]">
+          {features.map((text, i) => (
             <motion.div 
-              key={word}
-              className="px-[2vw] py-[1vw] rounded-full border border-blue-400/30 bg-blue-900/20 backdrop-blur-sm text-blue-200 text-[2.5vw] font-medium"
-              initial={{ opacity: 0, scale: 0.5, y: 20 }}
-              animate={phase >= i + 1 ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.5, y: 20 }}
-              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              key={text}
+              className="flex items-center justify-end gap-[1.5vw]"
+              initial={{ opacity: 0, x: 50 }}
+              animate={phase >= i + 2 ? { opacity: 1, x: 0 } : { opacity: 0, x: 50 }}
+              transition={{ type: "spring", stiffness: 200, damping: 20 }}
             >
-              {word}
+              <h2 className="text-[4vw] font-bold text-white tracking-tight font-sans" dir="rtl">
+                {text}
+              </h2>
+              <div className="w-[1.5vw] h-[1.5vw] rounded-full bg-[#FFB800]" />
             </motion.div>
           ))}
         </div>
-
-        <motion.h2 
-          className="text-[5vw] font-bold text-white text-center leading-tight mb-10"
-          initial={{ opacity: 0, y: 30 }}
-          animate={phase >= 4 ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-          transition={{ duration: 0.8 }}
-        >
-          <span className="text-blue-400">Nazim</span> reads, understands, <br/> and responds.
-        </motion.h2>
-
-        <motion.div 
-          className="bg-black/50 backdrop-blur-md border border-white/10 p-6 rounded-2xl"
-          initial={{ opacity: 0, scale: 0.9, y: 20 }}
-          animate={phase >= 4 ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.9, y: 20 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-        >
-          <p className="text-[2.5vw] text-blue-300 font-arabic" dir="rtl">
-            ناظم يقرأ، يفهم، ويجيب
-          </p>
-        </motion.div>
+        
+        <motion.div
+          className="w-full h-[2px] bg-gradient-to-l from-[#FFB800] to-transparent mt-[6vh]"
+          initial={{ scaleX: 0, originX: 1 }}
+          animate={phase >= 4 ? { scaleX: 1 } : { scaleX: 0 }}
+          transition={{ duration: 1, ease: "circOut" }}
+        />
       </div>
     </motion.div>
   );

@@ -67,56 +67,54 @@
 }
 
 :root {
-  /* Default to dark mode colors */
-  --background: 222 47% 7%;
-  --foreground: 210 40% 98%;
+  --background: 210 100% 10%; /* #001a33 slightly darker than 003366 */
+  --foreground: 0 0% 100%;
 
-  --card: 222 47% 11%;
-  --card-foreground: 210 40% 98%;
-  --card-border: 217 32% 17%;
+  --card: 210 100% 15%;
+  --card-foreground: 0 0% 100%;
+  --card-border: 210 100% 25%;
 
-  --popover: 222 47% 11%;
-  --popover-foreground: 210 40% 98%;
-  --popover-border: 217 32% 17%;
+  --popover: 210 100% 10%;
+  --popover-foreground: 0 0% 100%;
+  --popover-border: 210 100% 25%;
 
-  --primary: 160 84% 39%;
-  --primary-foreground: 160 84% 10%;
+  --primary: 43 100% 50%; /* #FFB800 */
+  --primary-foreground: 210 100% 10%;
 
-  --secondary: 217 32% 17%;
-  --secondary-foreground: 210 40% 98%;
+  --secondary: 210 100% 20%;
+  --secondary-foreground: 0 0% 100%;
 
-  --muted: 217 32% 17%;
-  --muted-foreground: 215 20.2% 65.1%;
+  --muted: 210 100% 20%;
+  --muted-foreground: 215 20% 70%;
 
-  --accent: 160 84% 39%;
-  --accent-foreground: 210 40% 98%;
+  --accent: 43 100% 50%;
+  --accent-foreground: 210 100% 10%;
 
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 210 40% 98%;
 
-  --border: 217 32% 17%;
-  --input: 217 32% 17%;
-  --ring: 160 84% 39%;
+  --border: 210 100% 25%;
+  --input: 210 100% 25%;
+  --ring: 43 100% 50%;
 
-  --chart-1: 160 84% 39%;
-  --chart-2: 217 91% 60%;
+  --chart-1: 43 100% 50%;
+  --chart-2: 210 100% 60%;
   --chart-3: 199 89% 48%;
-  --chart-4: 210 40% 98%;
-  --chart-5: 222 47% 11%;
+  --chart-4: 0 0% 100%;
+  --chart-5: 210 100% 15%;
 
-  --sidebar: 222 47% 7%;
-  --sidebar-foreground: 210 40% 98%;
-  --sidebar-border: 217 32% 17%;
-  --sidebar-primary: 160 84% 39%;
-  --sidebar-primary-foreground: 160 84% 10%;
-  --sidebar-accent: 217 32% 17%;
-  --sidebar-accent-foreground: 210 40% 98%;
-  --sidebar-ring: 160 84% 39%;
+  --sidebar: 210 100% 10%;
+  --sidebar-foreground: 0 0% 100%;
+  --sidebar-border: 210 100% 25%;
+  --sidebar-primary: 43 100% 50%;
+  --sidebar-primary-foreground: 210 100% 10%;
+  --sidebar-accent: 210 100% 20%;
+  --sidebar-accent-foreground: 0 0% 100%;
+  --sidebar-ring: 43 100% 50%;
 
   --radius: 0.5rem;
-  --app-font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
-  --app-font-serif: Georgia, serif;
-  --app-font-mono: 'Space Mono', ui-monospace, SFMono-Regular, monospace;
+  --app-font-sans: 'Tajawal', sans-serif;
+  --app-font-mono: 'Space Grotesk', monospace;
 }
 
 @layer base {
@@ -127,3 +125,4 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
 }
+
