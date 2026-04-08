@@ -745,37 +745,49 @@ export async function generateAdminReply(
   const _aiModel     = s["aiModel"]    ?? "gemini";
   const _geminiModel = s["geminiModel"] || "gemini-2.0-flash";
   const _groqModel   = s["groqModel"]   || "llama-3.3-70b-versatile";
-  const _geminiKey   = s["geminiApiKey"] ?? "";
   const _groqKey     = s["groqApiKey"]   ?? "";
 
-  const geminiChain = { provider: "gemini", apiKey: _geminiKey, models: buildModelChain(_geminiModel, GEMINI_MODELS) };
-  const groqChain   = { provider: "groq",   apiKey: _groqKey,   models: buildModelChain(_groqModel,   GROQ_MODELS)   };
-  const providerChain = _aiModel === "groq" ? [groqChain, geminiChain] : [geminiChain, groqChain];
+  // Collect ALL Gemini keys (same as generateAIReply — rotate through all 6)
+  const _geminiKeys = [
+    s["geminiApiKey"], s["geminiApiKey2"], s["geminiApiKey3"],
+    s["geminiApiKey4"], s["geminiApiKey5"], s["geminiApiKey6"],
+  ].map(k => (k ?? "").trim()).filter(Boolean);
+
+  const geminiChains = _geminiKeys.map((apiKey, i) => ({
+    provider: "gemini",
+    label: `gemini_${i + 1}`,
+    apiKey,
+    models: buildModelChain(_geminiModel, GEMINI_MODELS),
+  }));
+  const groqChain = { provider: "groq", label: "groq", apiKey: _groqKey, models: buildModelChain(_groqModel, GROQ_MODELS) };
+  const providerChain = _aiModel === "groq"
+    ? [groqChain, ...geminiChains]
+    : [...geminiChains, groqChain];
 
   let rawReply = "";
   let usedModel = "static/fallback";
 
   outer:
-  for (const { provider, apiKey, models } of providerChain) {
+  for (const { provider, label, apiKey, models } of providerChain) {
     if (!apiKey) continue;
     for (const model of models) {
-      if (isModelCoolingDown(provider, model)) continue;
+      if (isModelCoolingDown(label, model)) continue;
       try {
-        const label = `${provider}/${model}`;
+        const logLabel = `${label}/${model}`;
         rawReply = provider === "gemini"
-          ? await withTimeout(tryGemini(apiKey, model, systemPrompt, userMessage, conversationHistory), AI_TIMEOUT_MS, label)
-          : await withTimeout(tryGroq(apiKey, model, systemPrompt, userMessage, conversationHistory), AI_TIMEOUT_MS, label);
-        usedModel = `${provider}/${model}`;
+          ? await withTimeout(tryGemini(apiKey, model, systemPrompt, userMessage, conversationHistory), AI_TIMEOUT_MS, logLabel)
+          : await withTimeout(tryGroq(apiKey, model, systemPrompt, userMessage, conversationHistory), AI_TIMEOUT_MS, logLabel);
+        usedModel = logLabel;
         break outer;
       } catch (err: any) {
         const reason = err?.message ?? String(err);
-        logger.warn({ provider, model, reason }, "Admin AI model failed, trying next");
-        if (isQuotaError(err) || reason.includes("TIMEOUT")) markModelFailed(provider, model);
+        logger.warn({ provider: label, model, reason }, "Admin AI model failed, trying next");
+        if (isQuotaError(err) || reason.includes("TIMEOUT")) markModelFailed(label, model);
       }
     }
   }
 
-  if (!rawReply) rawReply = "حدث خطأ مؤقت. جرّب مجدداً.";
+  if (!rawReply) rawReply = "حدث خطأ مؤقت في الاتصال بالذكاء الاصطناعي. جرّب مجدداً بعد قليل.";
 
   // Extract [SET key=value] tags from reply
   const actions: Record<string, string> = {};
