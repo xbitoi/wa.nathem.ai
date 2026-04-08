@@ -2,6 +2,7 @@ import { logger } from "../lib/logger";
 import { db, contactsTable, messagesTable, settingsTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
 import { generateAIReply, generateAdminReply, getAllSettings } from "./ai";
+import { backupSession, restoreSessionIfMissing, clearSessionBackup } from "./whatsappSession";
 import fs from "fs";
 import path from "path";
 
@@ -717,6 +718,9 @@ export async function connectWhatsApp(pairingPhone?: string) {
     const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = await import("@whiskeysockets/baileys");
     const { Boom } = await import("@hapi/boom");
 
+    // Restore session from DB backup if local files are missing
+    await restoreSessionIfMissing(SESSION_DIR);
+
     if (!fs.existsSync(SESSION_DIR)) {
       fs.mkdirSync(SESSION_DIR, { recursive: true });
     }
@@ -733,7 +737,10 @@ export async function connectWhatsApp(pairingPhone?: string) {
 
     state.client = sock;
 
-    sock.ev.on("creds.update", saveCreds);
+    sock.ev.on("creds.update", async () => {
+      saveCreds();
+      await backupSession(SESSION_DIR);
+    });
 
     sock.ev.on("connection.update", async (update: any) => {
       const { connection, lastDisconnect, qr } = update;
@@ -795,6 +802,7 @@ export async function connectWhatsApp(pairingPhone?: string) {
           if (fs.existsSync(SESSION_DIR)) {
             fs.rmSync(SESSION_DIR, { recursive: true, force: true });
           }
+          clearSessionBackup().catch(() => {});
           reconnectAttempts = 0;
           setTimeout(connectWhatsApp, 1500);
         } else {
@@ -1209,6 +1217,7 @@ export async function disconnectWhatsApp() {
   if (fs.existsSync(SESSION_DIR)) {
     fs.rmSync(SESSION_DIR, { recursive: true, force: true });
   }
+  await clearSessionBackup().catch(() => {});
 }
 
 export async function clearWhatsAppQr() {
@@ -1222,6 +1231,7 @@ export async function clearWhatsAppQr() {
   if (fs.existsSync(SESSION_DIR)) {
     fs.rmSync(SESSION_DIR, { recursive: true, force: true });
   }
+  await clearSessionBackup().catch(() => {});
   setTimeout(connectWhatsApp, 500);
 }
 
