@@ -157,27 +157,63 @@ router.post("/", async (req, res) => {
   res.json(buildSettingsObject(raw));
 });
 
-// --- Gemini model fetching — fixed list of 2 supported models ---
-const GEMINI_SUPPORTED = [
-  { id: "gemini-2.5-flash-preview-04-17", name: "Gemini 2.5 Flash", description: "الأحدث — رصيد يومي كبير" },
-  { id: "gemini-2.0-flash",               name: "Gemini 2.0 Flash", description: "ثابت ومستقر — رصيد عالٍ" },
+// --- Gemini model fetching — live list from Google API ---
+// Friendly display names for known models
+const GEMINI_NAMES: Record<string, { name: string; description: string }> = {
+  "gemini-3.1-pro-preview":   { name: "Gemini 3.1 Pro Preview",   description: "الأحدث والأقوى" },
+  "gemini-3-pro-preview":     { name: "Gemini 3 Pro Preview",      description: "Pro جيل 3" },
+  "gemini-3-flash-preview":   { name: "Gemini 3 Flash Preview",    description: "Flash جيل 3 — سريع" },
+  "gemini-2.5-pro":           { name: "Gemini 2.5 Pro",            description: "Pro متوازن وقوي" },
+  "gemini-2.5-flash":         { name: "Gemini 2.5 Flash",          description: "Flash سريع ومستقر" },
+  "gemini-2.0-flash":         { name: "Gemini 2.0 Flash",          description: "Flash 2.0 — رصيد عالٍ" },
+  "gemini-2.0-flash-lite":    { name: "Gemini 2.0 Flash Lite",     description: "الأخف — رصيد مجاني أعلى" },
+  "gemini-2.0-flash-001":     { name: "Gemini 2.0 Flash 001",      description: "Flash 2.0 نسخة مستقرة" },
+  "gemini-flash-latest":      { name: "Gemini Flash Latest",        description: "آخر إصدار Flash" },
+};
+
+// Priority order for sorting
+const GEMINI_PRIORITY = [
+  "gemini-3.1-pro-preview", "gemini-3-pro-preview", "gemini-3-flash-preview",
+  "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-001",
+  "gemini-2.0-flash-lite", "gemini-flash-latest",
 ];
 
 router.get("/models/gemini", async (req, res) => {
   const key = req.query.key as string;
   if (!key) return res.status(400).json({ error: "Missing key" });
 
-  // Validate key with a lightweight check
   try {
-    const check = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models?key=${key}&pageSize=1`
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${key}&pageSize=100`
     );
-    if (!check.ok) return res.status(400).json({ error: "Invalid API key or quota exceeded" });
+    if (!response.ok) return res.status(400).json({ error: "Invalid API key or quota exceeded" });
+
+    const data = await response.json() as { models?: Array<{ name: string; supportedGenerationMethods?: string[] }> };
+    const allModels = (data.models ?? [])
+      .filter(m => m.supportedGenerationMethods?.includes("generateContent"))
+      .map(m => m.name.replace("models/", ""))
+      .filter(id => id.startsWith("gemini") && !id.includes("tts") && !id.includes("image") && !id.includes("computer-use") && !id.includes("robotics") && !id.includes("customtools"));
+
+    // Sort: known priority models first, then alphabetically
+    allModels.sort((a, b) => {
+      const pa = GEMINI_PRIORITY.indexOf(a);
+      const pb = GEMINI_PRIORITY.indexOf(b);
+      if (pa !== -1 && pb !== -1) return pa - pb;
+      if (pa !== -1) return -1;
+      if (pb !== -1) return 1;
+      return a.localeCompare(b);
+    });
+
+    const models = allModels.map(id => ({
+      id,
+      name: GEMINI_NAMES[id]?.name ?? id,
+      description: GEMINI_NAMES[id]?.description ?? "",
+    }));
+
+    return res.json({ models });
   } catch {
     return res.status(500).json({ error: "Failed to reach Gemini API" });
   }
-
-  return res.json({ models: GEMINI_SUPPORTED });
 });
 
 // --- Groq model fetching — fixed list of 2 supported models ---
