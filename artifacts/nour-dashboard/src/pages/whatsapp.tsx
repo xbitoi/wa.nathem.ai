@@ -90,7 +90,7 @@ export default function Whatsapp() {
       return;
     }
     pairingMutation.mutate(
-      { phone: clean },
+      { data: { phone: clean } },
       {
         onSuccess: (data) => {
           if (data.pairingCode) {
