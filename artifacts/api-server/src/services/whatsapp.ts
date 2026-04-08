@@ -88,23 +88,29 @@ async function saveMessage(contactId: number, content: string, direction: "inbou
 
 // ── Send demo video — always as MP4 file, never as link ──────────────────────
 async function sendDemoVideo(sock: any, jid: string, videoUrl: string): Promise<void> {
-  try {
-    const res = await fetch(videoUrl);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const buf = Buffer.from(await res.arrayBuffer());
-    await sock.sendMessage(jid, {
-      video: buf,
-      mimetype: "video/mp4",
-      caption: "🎥 فيديو توضيحي — Yazaki AI Table Reader",
-    });
-  } catch {
-    // If fetching fails, fall back to URL send with explicit mimetype
-    await sock.sendMessage(jid, {
-      video: { url: videoUrl },
-      mimetype: "video/mp4",
-      caption: "🎥 فيديو توضيحي — Yazaki AI Table Reader",
-    });
+  const CAPTION = "🎥 فيديو توضيحي — Yazaki AI Table Reader";
+
+  // ① Try fetching via localhost to avoid the external proxy (faster, no TLS issues)
+  const localUrl = videoUrl.replace(
+    /^https?:\/\/[^/]+/,
+    `http://localhost:${process.env.PORT ?? 8080}`,
+  );
+
+  for (const url of [localUrl, videoUrl]) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+      if (!res.ok) continue;
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length < 100) continue; // sanity check — not an error page
+      await sock.sendMessage(jid, { video: buf, mimetype: "video/mp4", caption: CAPTION });
+      logger.info({ url, bytes: buf.length }, "Demo video sent as buffer");
+      return;
+    } catch { /* try next */ }
   }
+
+  // ② Fallback: let Baileys download it directly
+  logger.warn({ videoUrl }, "Buffer fetch failed — Baileys will download directly");
+  await sock.sendMessage(jid, { video: { url: videoUrl }, mimetype: "video/mp4", caption: CAPTION });
 }
 
 async function getRecentMessages(contactId: number, limit = 10) {
@@ -1170,6 +1176,17 @@ export async function connectWhatsApp(pairingPhone?: string) {
             const result = await generateAIReply(text, history, isReturningUser, contact.messageCount);
             reply = result.reply;
             model = result.model;
+
+            // ── Guard: if AI wrote the video URL directly in text, inject the tag instead ──
+            {
+              const allS2 = await getAllSettings();
+              const dvu = (allS2["demoVideoUrl"] ?? "").trim();
+              if (dvu && reply.includes(dvu) && !reply.includes("[SEND_DEMO_VIDEO]")) {
+                reply = reply.replace(dvu, "").trim();
+                reply += "\n\n[SEND_DEMO_VIDEO]";
+                logger.info("Video URL found in reply text — converted to [SEND_DEMO_VIDEO] tag");
+              }
+            }
 
             // ── Static fallback: intercept video requests manually ──
             if (model === "static/fallback") {
