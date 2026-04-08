@@ -684,6 +684,11 @@ let reconnectAttempts = 0;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let disconnectedAt: number | null = null; // timestamp of last disconnect
 
+// Logout storm detection — if kicked 3 times in 90s, stop auto-reconnecting
+let logoutTimestamps: number[] = [];
+const LOGOUT_STORM_LIMIT = 3;
+const LOGOUT_STORM_WINDOW_MS = 90_000;
+
 function clearHeartbeat() {
   if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
 }
@@ -819,13 +824,33 @@ export async function connectWhatsApp(pairingPhone?: string) {
         logger.info({ reason, wasLoggedOut }, "WhatsApp disconnected");
 
         if (wasLoggedOut) {
-          // Clear old session so a fresh QR code is generated
+          // Clear old session
           if (fs.existsSync(SESSION_DIR)) {
             fs.rmSync(SESSION_DIR, { recursive: true, force: true });
           }
           clearSessionBackup().catch(() => {});
           reconnectAttempts = 0;
-          setTimeout(connectWhatsApp, 1500);
+
+          // Logout storm detection: if kicked repeatedly in a short window,
+          // this means another device/environment is connected with the same number.
+          // Stop auto-reconnecting to avoid the infinite kick loop.
+          const now = Date.now();
+          logoutTimestamps = logoutTimestamps.filter(t => now - t < LOGOUT_STORM_WINDOW_MS);
+          logoutTimestamps.push(now);
+
+          if (logoutTimestamps.length >= LOGOUT_STORM_LIMIT) {
+            logoutTimestamps = [];
+            logger.warn(
+              "Logout storm detected — another session is likely active elsewhere. Pausing auto-reconnect for 5 minutes."
+            );
+            state.qr = null;
+            state.pairingCode = null;
+            state.pairingPending = false;
+            // Wait 5 minutes before allowing reconnect
+            setTimeout(connectWhatsApp, 5 * 60 * 1000);
+          } else {
+            setTimeout(connectWhatsApp, 1500);
+          }
         } else {
           // Network/server issue — reconnect with exponential backoff
           scheduleReconnect();
