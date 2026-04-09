@@ -10,7 +10,7 @@ const rawPort = process.env.PORT;
 if (!rawPort && isReplit) {
   throw new Error("PORT environment variable is required but was not provided.");
 }
-const port = Number(rawPort ?? "3000");
+const port = Number(rawPort ?? "7860");
 
 // BASE_PATH is required on Replit; default to "/" elsewhere
 const basePath = process.env.BASE_PATH ?? "/";
