@@ -10,4 +10,6 @@ jobs:
         with:
           fetch-depth: 0
       - name: Push to HF
-        run: git push --force https://xboy38:Hf_EFlcVXlwENZnTMnMZIkJYfjjLcoImMyseW@huggingface.co/spaces/xboy38/nazim main
+        run: |
+          git remote add hf https://xboy38:Hf_EFlcVXlwENZnTMnMZIkJYfjjLcoImMyseW@huggingface.co/spaces/xboy38/nazim
+          git push hf main --force
