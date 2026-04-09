@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { initDb } from "@workspace/db";
 
 const rawPort = process.env["PORT"];
 
@@ -27,13 +28,19 @@ process.on("uncaughtException", (err: Error) => {
   logger.error({ err }, "Uncaught exception — server kept alive");
 });
 
-// ─── Start HTTP server ───────────────────────────────────────────────────────
+// ─── Initialise DB tables then start HTTP server ─────────────────────────────
 
-app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
+initDb()
+  .then(() => {
+    app.listen(port, (err) => {
+      if (err) {
+        logger.error({ err }, "Error listening on port");
+        process.exit(1);
+      }
+      logger.info({ port }, "Server listening");
+    });
+  })
+  .catch((err) => {
+    logger.error({ err }, "DB initialisation failed — server not started");
     process.exit(1);
-  }
-
-  logger.info({ port }, "Server listening");
-});
+  });

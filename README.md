@@ -1,3 +1,13 @@
+---
+title: Nathem Yazaki AI
+emoji: 🤖
+colorFrom: green
+colorTo: blue
+sdk: docker
+pinned: false
+app_port: 7860
+---
+
 # نور — Yazaki AI Table Reader
 
 [![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live-brightgreen?logo=github)](https://xbitoi.github.io/nour-agent)
