@@ -1,0 +1,13 @@
+name: Sync to Hugging Face
+on:
+  push:
+    branches: [main]
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Push to HF
+        run: git push --force https://xboy38:Hf_EFlcVXlwENZnTMnMZIkJYfjjLcoImMyseW@huggingface.co/spaces/xboy38/nazim main
